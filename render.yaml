@@ -1,0 +1,23 @@
+# Render 部署配置（免费 Web 服务）
+# 部署步骤：把本文件夹推到 GitHub → Render 新建 Blueprint → 选此文件 → Deploy
+services:
+  - type: web
+    name: lexueyuan-hw
+    runtime: node
+    plan: free
+    region: oregon   # 可选：singapore / frankfurt
+    branch: main
+    buildCommand: "echo 无需构建"
+    startCommand: "node server.js"
+    healthCheckPath: "/"
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: DATA_DIR
+        value: "/var/data"
+    # 持久磁盘：让数据在重启/重新部署后不丢失（Render 磁盘为付费项；
+    # 若不使用磁盘，数据在“重新部署”时会重置，但日常重启保留）。
+    disk:
+      name: lexueyuan-data
+      mountPath: /var/data
+      sizeGB: 1
