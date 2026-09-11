@@ -342,10 +342,10 @@ function hwView(){
   colD.appendChild(el('input',{type:'date',id:'hwDate',value:todayISO()}));
   row.appendChild(colS);row.appendChild(colD);c.appendChild(row);
 
-  // 上传
-  const up=el('div','file-drop',{id:'hwDrop',onclick:()=>$('#hwFile').click()},'📷 点击上传作业登记本照片');
-  up.style.marginTop='12px';
-  const file=el('input',{type:'file',accept:'image/*',id:'hwFile',style:'display:none'});
+  // 上传（用原生 label 触发，手机/桌面都能弹出选择框；图片上传到 Supabase 存储桶，只存链接）
+  const up=el('label','file-drop',{id:'hwDrop',for:'hwFile'},'📷 点击上传作业登记本照片');
+  up.style.marginTop='12px';up.style.cursor='pointer';up.style.display='block';
+  const file=el('input',{type:'file',accept:'image/*',id:'hwFile',style:'position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;left:-9999px'});
   c.appendChild(up);c.appendChild(file);
 
   // 标注区
@@ -385,12 +385,21 @@ function hwView(){
 
   $('#app').appendChild(c);
 
-  file.addEventListener('change',e=>{
-    const f=e.target.files[0];if(!f)return;const rd=new FileReader();
-    rd.onload=ev=>{hwState.img=ev.target.result;img.src=ev.target.result;
+  file.addEventListener('change',async e=>{
+    const f=e.target.files[0];if(!f)return;
+    up.textContent='⏳ 正在上传照片…';up.style.pointerEvents='none';
+    try{
+      const raw=(f.name.split('.').pop()||'jpg').split('?')[0].toLowerCase();
+      const ext=['jpg','jpeg','png','gif','webp','heic','bmp'].includes(raw)?raw:'jpg';
+      const path='hw/'+uid()+'.'+ext;
+      const {error}=await sb.storage.from('site').upload(path,f,{contentType:f.type||('image/'+ext),upsert:false,cacheControl:'31536000'});
+      if(error)throw error;
+      const url=sb.storage.from('site').getPublicUrl(path).data.publicUrl;
+      hwState.img=url;img.src=url;
       wrap.style.display='inline-block';tb.style.display='flex';up.textContent='📷 已选照片，可重新点击更换';
       img.onload=()=>{hwState.imgW=img.naturalWidth;hwState.imgH=img.naturalHeight;};
-    };rd.readAsDataURL(f);
+    }catch(err){up.textContent='📷 点击上传作业登记本照片';toast('上传失败：'+(err&&err.message?err.message:err));}
+    finally{up.style.pointerEvents='';}
   });
 }
 function addTextNote(){
