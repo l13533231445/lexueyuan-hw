@@ -235,7 +235,7 @@ async function loadImgEl(src){
 /* 把照片用 canvas 处理成"扫描版"：黑白=高对比文档 + 纸张白化；彩色=增强对比 */
 async function makeScanCanvas(src,mode){
   const im=await loadImgEl(src);
-  const maxW=1600;
+  const maxW=1000;
   const scale=Math.min(1,maxW/im.naturalWidth);
   const w=Math.max(1,Math.round(im.naturalWidth*scale)),h=Math.max(1,Math.round(im.naturalHeight*scale));
   const cv=document.createElement('canvas');cv.width=w;cv.height=h;
@@ -519,12 +519,12 @@ function hwView(){
       addTextNote(xPct,yPct);
     };
     img.onload=()=>{hwState.imgW=img.naturalWidth;hwState.imgH=img.naturalHeight;};
-    img.onerror=()=>{const box=showImgError(wrap);if(box)box.textContent='⚠️ 本地预览生成失败，请换一张照片重试。';};
+    img.onerror=()=>{ if(hwState.localUrl && $('#hwImg').src!==hwState.localUrl){ $('#hwImg').src=hwState.localUrl; } else { const box=showImgError(wrap);if(box)box.textContent='⚠️ 本地预览生成失败，请换一张照片重试。'; } };
     upText.textContent='⏳ 正在处理照片…';up.style.pointerEvents='none';
     // 2) 本地预览：转成压缩 JPEG data URL（同域 data:，iOS 必定渲染，绝不被"阻止跨站跟踪"拦截）；HEIC/超大图都兼容。预览只用本地图，绝不依赖跨站 Supabase 链接
     let localUrl=null;
     try{
-      localUrl=await fileToJpegDataUrl(f,1280);hwState.localUrl=localUrl;hwState.img=localUrl;img.src=localUrl;
+      localUrl=await fileToJpegDataUrl(f,960);hwState.localUrl=localUrl;hwState.img=localUrl;img.src=localUrl;
     }catch(_){ try{ const du2=await readAsDataURL(f);hwState.localUrl=du2;hwState.img=du2;img.src=du2; }catch(__){} }
     // 3) 后台上传原图到 Supabase（仅作为存储，不直接用于手机预览）。默认存储原图链接，扫描/还原会覆盖
     hwState.savedUrl=null;
@@ -569,7 +569,7 @@ async function scanHw(mode){
   toast('正在扫描成文档…');
   try{
     const cv=await makeScanCanvas(hwState.localUrl,mode);
-    const sd=cv.toDataURL('image/jpeg',0.9);          // 本地扫描图（data URL，手机必显示）
+    const sd=cv.toDataURL('image/jpeg',0.8);          // 本地扫描图（data URL，体积更小手机必显示）
     $('#hwImg').src=sd;hwState.img=sd;                  // 预览始终用本地图
     const url=await uploadCanvas(cv,'hw/'+uid()+'.jpg');
     hwState.savedUrl=url||sd;                           // 存储：优先 Supabase，失败用本地
@@ -830,11 +830,11 @@ function examView(){
   $('#app').appendChild(c);
 
   file.addEventListener('change',async e=>{toast('文件已选择：'+e.target.files.length+' 张');const f=e.target.files[0];if(!f){toast('未获取到文件，请重试');return;}
-    thumb.onerror=()=>{const box=showImgError(thumb);if(box)box.textContent='⚠️ 本地预览生成失败，请换一张照片重试。';};
+    thumb.onerror=()=>{ if(exLocalUrl && thumb.src!==exLocalUrl){ thumb.src=exLocalUrl; } else { const box=showImgError(thumb);if(box)box.textContent='⚠️ 本地预览生成失败，请换一张照片重试。'; } };
     upText.textContent='⏳ 正在处理照片…';up.style.pointerEvents='none';
     exTb.style.display='flex';
     let localUrl=null;
-    try{ localUrl=await fileToJpegDataUrl(f,1280);exLocalUrl=localUrl;examImg=localUrl;thumb.src=localUrl;thumb.style.display='block'; }
+    try{ localUrl=await fileToJpegDataUrl(f,960);exLocalUrl=localUrl;examImg=localUrl;thumb.src=localUrl;thumb.style.display='block'; }
     catch(_){ try{ const du2=await readAsDataURL(f);exLocalUrl=du2;examImg=du2;thumb.src=du2;thumb.style.display='block'; }catch(__){} }
     exSavedUrl=null;
     try{
@@ -854,7 +854,7 @@ async function scanEx(mode){
   toast('正在扫描成文档…');
   try{
     const cv=await makeScanCanvas(exLocalUrl,mode);
-    const sd=cv.toDataURL('image/jpeg',0.9);
+    const sd=cv.toDataURL('image/jpeg',0.8);
     examImg=sd;$('#exThumb').src=sd;                 // 预览用本地扫描图（data URL，手机必显示）
     const url=await uploadCanvas(cv,'exams/'+uid()+'.jpg');
     exSavedUrl=url||sd;                              // 存储：优先 Supabase，失败用本地
