@@ -2,11 +2,14 @@
   "name": "lexueyuan-cloud",
   "version": "1.0.0",
   "private": true,
-  "description": "乐学园晚托作业辅导工作台 · 云端共享版（多手机同步）",
+  "description": "乐学园晚托作业辅导工作台 · 云端共享版（多手机同步，Postgres持久存储）",
   "scripts": {
     "start": "node server.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "pg": "^8.12.0"
   }
 }

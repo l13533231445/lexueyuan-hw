@@ -1,5 +1,6 @@
-# Render 部署配置（免费 Web 服务）
+# Render 部署配置（免费 Web 服务 + 免费 Postgres 云数据库）
 # 部署步骤：把本文件夹推到 GitHub → Render 新建 Blueprint → 选此文件 → Deploy
+# 说明：检测到 DATABASE_URL 时后端自动改用 Postgres，数据真正持久，不怕重启/重新部署。
 services:
   - type: web
     name: lexueyuan-hw
@@ -7,17 +8,22 @@ services:
     plan: free
     region: oregon   # 可选：singapore / frankfurt
     branch: main
-    buildCommand: "echo 无需构建"
+    buildCommand: "npm install"
     startCommand: "node server.js"
     healthCheckPath: "/"
     envVars:
       - key: PORT
         value: "3000"
-      - key: DATA_DIR
-        value: "/var/data"
-    # 持久磁盘：让数据在重启/重新部署后不丢失（Render 磁盘为付费项；
-    # 若不使用磁盘，数据在“重新部署”时会重置，但日常重启保留）。
-    disk:
-      name: lexueyuan-data
-      mountPath: /var/data
-      sizeGB: 1
+      - key: PASSWORD
+        value: "1234"   # 访问密码，部署后可在 Render 后台修改
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lexueyuan-db
+          property: connectionString
+
+databases:
+  - name: lexueyuan-db
+    databaseName: lexueyuan
+    user: lexueyuan
+    plan: free
+    postgresMajorVersion: 16
