@@ -613,8 +613,8 @@ function examView(){
   const lv=el('select',{id:'exLevel'});['A','B','C','D'].forEach(x=>lv.appendChild(el('option',{value:x},x)));colLv.appendChild(lv);
   row2.appendChild(colD);row2.appendChild(colSc);row2.appendChild(colLv);c.appendChild(row2);
 
-  const up=el('div','file-drop',{id:'exDrop',onclick:()=>$('#exFile').click()},'📷 点击上传试卷照片（可选）');
-  up.style.marginTop='12px';const file=el('input',{type:'file',accept:'image/*',id:'exFile',style:'display:none'});
+  const up=el('label','file-drop',{id:'exDrop',for:'exFile'},'📷 点击上传试卷照片（可选）');
+  up.style.marginTop='12px';up.style.cursor='pointer';up.style.display='block';const file=el('input',{type:'file',accept:'image/*',id:'exFile',style:'position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;left:-9999px'});
   c.appendChild(up);c.appendChild(file);
   const thumb=el('img','thumb',{id:'exThumb',style:'display:none;margin-top:10px'});
   c.appendChild(thumb);
@@ -635,9 +635,19 @@ function examView(){
   renderExamList(list);
   $('#app').appendChild(c);
 
-  file.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
-    rd.onload=ev=>{examImg=ev.target.result;thumb.src=examImg;thumb.style.display='block';up.textContent='📷 已选试卷照片，可重新点击更换';};
-    rd.readAsDataURL(f);});
+  file.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;
+    up.textContent='⏳ 正在上传照片…';up.style.pointerEvents='none';
+    try{
+      const raw=(f.name.split('.').pop()||'jpg').split('?')[0].toLowerCase();
+      const ext=['jpg','jpeg','png','gif','webp','heic','bmp'].includes(raw)?raw:'jpg';
+      const path='exams/'+uid()+'.'+ext;
+      const {error}=await sb.storage.from('site').upload(path,f,{contentType:f.type||('image/'+ext),upsert:false,cacheControl:'31536000'});
+      if(error)throw error;
+      const url=sb.storage.from('site').getPublicUrl(path).data.publicUrl;
+      examImg=url;thumb.src=url;thumb.style.display='block';up.textContent='📷 已选试卷照片，可重新点击更换';
+    }catch(err){up.textContent='📷 点击上传试卷照片（可选）';toast('上传失败：'+(err&&err.message?err.message:err));}
+    finally{up.style.pointerEvents='';}
+  });
 }
 function levelAuto(score){
   if(score==null||isNaN(score))return '';
