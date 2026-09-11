@@ -180,6 +180,26 @@ const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const TABLES=['students','homework','followups','exams'];
 let _rev=0, _syncTimer=null, _syncing=false;
 const uid=()=> (crypto.randomUUID?crypto.randomUUID():'id'+Date.now()+Math.random().toString(16).slice(2));
+/* 把任意图片（含 iPhone HEIC）读入 canvas 转成 JPEG 压缩，解决 HEIC 不显示/体积大/上传慢问题 */
+function fileToJpegBlob(file,maxW){
+  return new Promise((resolve,reject)=>{
+    const fr=new FileReader();
+    fr.onload=ev=>{
+      const im=new Image();
+      im.onload=()=>{
+        let w=im.naturalWidth||maxW,h=im.naturalHeight||maxW;
+        if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+        const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+        try{cv.getContext('2d').drawImage(im,0,0,w,h);}catch(e){reject(e);return;}
+        cv.toBlob(b=>{ if(b)resolve(b); else reject(new Error('图片压缩失败')); },'image/jpeg',0.82);
+      };
+      im.onerror=()=>reject(new Error('图片解码失败（可能是格式不支持）'));
+      im.src=ev.target.result;
+    };
+    fr.onerror=()=>reject(new Error('读取文件失败'));
+    fr.readAsDataURL(file);
+  });
+}
 const getPw=()=> (localStorage.getItem('lx_pw')||'');
 async function apiGet(){
   const out={};
@@ -388,18 +408,25 @@ function hwView(){
 
   file.addEventListener('change',async e=>{
     const f=e.target.files[0];if(!f)return;
+    // 1) 立即本地预览（不依赖上传，秒出图；HEIC 在手机本地也可显示）
+    const localUrl=URL.createObjectURL(f);
+    hwState.img=localUrl;img.src=localUrl;
+    wrap.style.display='inline-block';tb.style.display='flex';
+    img.onload=()=>{hwState.imgW=img.naturalWidth;hwState.imgH=img.naturalHeight;};
     upText.textContent='⏳ 正在上传照片…';up.style.pointerEvents='none';
+    // 2) 后台转 JPEG 压缩后上传（兼容 iPhone HEIC / 安卓 / 电脑）
     try{
-      const raw=(f.name.split('.').pop()||'jpg').split('?')[0].toLowerCase();
-      const ext=['jpg','jpeg','png','gif','webp','heic','bmp'].includes(raw)?raw:'jpg';
-      const path='hw/'+uid()+'.'+ext;
-      const {error}=await sb.storage.from('site').upload(path,f,{contentType:f.type||('image/'+ext),upsert:false,cacheControl:'31536000'});
+      const blob=await fileToJpegBlob(f,1280);
+      const path='hw/'+uid()+'.jpg';
+      const {error}=await sb.storage.from('site').upload(path,blob,{contentType:'image/jpeg',upsert:false,cacheControl:'31536000'});
       if(error)throw error;
       const url=sb.storage.from('site').getPublicUrl(path).data.publicUrl;
       hwState.img=url;img.src=url;
-      wrap.style.display='inline-block';tb.style.display='flex';upText.textContent='📷 已选照片，可重新点击更换';
-      img.onload=()=>{hwState.imgW=img.naturalWidth;hwState.imgH=img.naturalHeight;};
-    }catch(err){upText.textContent='📷 点击上传作业登记本照片';toast('上传失败：'+(err&&err.message?err.message:err));}
+      upText.textContent='📷 已选照片，可重新点击更换';
+    }catch(err){
+      upText.textContent='⚠️ 上传失败（已用本机预览，可正常保存）';
+      toast('上传失败：'+(err&&err.message?err.message:err)+'（照片已本机预览，不影响添加备注和保存）');
+    }
     finally{up.style.pointerEvents='';}
   });
 }
@@ -639,16 +666,16 @@ function examView(){
   $('#app').appendChild(c);
 
   file.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;
+    const localUrl=URL.createObjectURL(f);examImg=localUrl;thumb.src=localUrl;thumb.style.display='block';
     upText.textContent='⏳ 正在上传照片…';up.style.pointerEvents='none';
     try{
-      const raw=(f.name.split('.').pop()||'jpg').split('?')[0].toLowerCase();
-      const ext=['jpg','jpeg','png','gif','webp','heic','bmp'].includes(raw)?raw:'jpg';
-      const path='exams/'+uid()+'.'+ext;
-      const {error}=await sb.storage.from('site').upload(path,f,{contentType:f.type||('image/'+ext),upsert:false,cacheControl:'31536000'});
+      const blob=await fileToJpegBlob(f,1280);
+      const path='exams/'+uid()+'.jpg';
+      const {error}=await sb.storage.from('site').upload(path,blob,{contentType:'image/jpeg',upsert:false,cacheControl:'31536000'});
       if(error)throw error;
       const url=sb.storage.from('site').getPublicUrl(path).data.publicUrl;
-      examImg=url;thumb.src=url;thumb.style.display='block';upText.textContent='📷 已选试卷照片，可重新点击更换';
-    }catch(err){upText.textContent='📷 点击上传试卷照片（可选）';toast('上传失败：'+(err&&err.message?err.message:err));}
+      examImg=url;thumb.src=url;upText.textContent='📷 已选试卷照片，可重新点击更换';
+    }catch(err){upText.textContent='⚠️ 上传失败（已用本机预览）';toast('上传失败：'+(err&&err.message?err.message:err));}
     finally{up.style.pointerEvents='';}
   });
 }
