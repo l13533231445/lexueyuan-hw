@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>乐学园晚托作业辅导工作台</title>
+<style>
+  :root{
+    --bg:#f4f7fb; --panel:#ffffff; --ink:#1f2a37; --muted:#6b7280;
+    --line:#e5e9f0; --brand:#2f6fed; --brand-soft:#eaf1ff; --brand-d:#1f4fc0;
+    --green:#16a34a; --green-soft:#e7f7ee; --amber:#d97706; --amber-soft:#fdf3e2;
+    --red:#dc2626; --red-soft:#fdeaea; --shadow:0 6px 22px rgba(31,42,55,.08);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.55;}
+  header.top{background:linear-gradient(120deg,var(--brand) 0%,#5b8df6 100%);color:#fff;
+    padding:16px 22px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);}
+  header.top .logo{width:40px;height:40px;border-radius:11px;background:rgba(255,255,255,.18);
+    display:flex;align-items:center;justify-content:center;font-size:22px}
+  header.top h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.5px}
+  header.top .sub{font-size:12px;opacity:.85;margin-top:2px}
+  nav.tabs{display:flex;gap:6px;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:20;flex-wrap:wrap;box-shadow:0 2px 8px rgba(31,42,55,.04)}
+  nav.tabs button{border:1px solid transparent;background:transparent;color:var(--muted);
+    padding:8px 14px;border-radius:10px;font-size:14px;cursor:pointer;font-weight:600;transition:.15s}
+  nav.tabs button:hover{background:var(--brand-soft);color:var(--brand)}
+  nav.tabs button.active{background:var(--brand);color:#fff}
+  main{max-width:1080px;margin:0 auto;padding:20px 18px 60px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px;box-shadow:var(--shadow);margin-bottom:18px}
+  .card h2{margin:0 0 14px;font-size:16px;display:flex;align-items:center;gap:8px}
+  .card h2 .tag{font-size:11px;background:var(--brand-soft);color:var(--brand);padding:2px 8px;border-radius:20px;font-weight:600}
+  label.fld{display:block;font-size:13px;color:var(--muted);margin:12px 0 5px;font-weight:600}
+  input[type=text],input[type=date],input[type=number],select,textarea{
+    width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;
+    font-family:inherit;background:#fff;color:var(--ink);transition:.15s}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+  textarea{resize:vertical;min-height:74px}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .row > .col{flex:1;min-width:200px}
+  .btn{border:none;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;
+    background:var(--brand);color:#fff;transition:.15s}
+  .btn:hover{background:var(--brand-d)}
+  .btn.ghost{background:var(--brand-soft);color:var(--brand)}
+  .btn.ghost:hover{background:#dde8ff}
+  .btn.green{background:var(--green)}
+  .btn.green:hover{background:#128a3c}
+  .btn.sm{padding:6px 12px;font-size:13px}
+  .btn.warn{background:#fff;border:1px solid var(--line);color:var(--muted)}
+  .btn.warn:hover{border-color:var(--red);color:var(--red)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .hint{font-size:12px;color:var(--muted);background:var(--brand-soft);padding:8px 12px;border-radius:10px;margin:8px 0}
+  /* image annotation */
+  .annot-wrap{position:relative;display:inline-block;max-width:100%;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0c0c0c;line-height:0}
+  .annot-wrap img{display:block;max-width:100%;max-height:62vh;width:auto;cursor:crosshair}
+  .annot-layer{position:absolute;inset:0;pointer-events:none}
+  .note{position:absolute;pointer-events:auto;background:rgba(255,255,255,.94);border:2px solid var(--brand);
+    border-radius:8px;font-size:13px;color:var(--ink);min-width:64px;max-width:220px;
+    line-height:1.4;box-shadow:0 3px 10px rgba(0,0,0,.25);transform:translate(-50%,-50%)}
+  .note .grip{display:block;background:var(--brand);color:#fff;font-size:11px;text-align:center;
+    cursor:move;padding:1px 0;border-radius:6px 6px 0 0;user-select:none}
+  .note .body{padding:5px 8px;min-height:18px;outline:none;color:var(--red);font-weight:600;font-size:13px}
+  .note .body:empty:before{content:'输入备注…';color:#9aa3af}
+  .note .body:focus{background:#eef6ff}
+  .check{position:absolute;pointer-events:auto;color:#22c55e;font-size:30px;font-weight:900;
+    transform:translate(-50%,-50%);cursor:move;text-shadow:0 2px 4px rgba(0,0,0,.5);user-select:none}
+  .check::before{content:"✔"}
+  .note .del{position:absolute;top:-9px;right:-9px;width:18px;height:18px;border-radius:50%;background:var(--red);
+    color:#fff;border:none;font-size:12px;line-height:18px;cursor:pointer;padding:0;z-index:2}
+  .check .del{position:absolute;top:-10px;right:-10px;width:18px;height:18px;border-radius:50%;background:var(--red);
+    color:#fff;border:none;font-size:12px;line-height:18px;cursor:pointer;padding:0;z-index:2}
+  .annot-mini{position:relative;display:inline-block;max-width:220px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#000;line-height:0;vertical-align:top}
+  .annot-mini img{display:block;max-width:220px;max-height:160px;width:auto}
+  .annot-mini .note.ro,.annot-mini .check.ro{pointer-events:none;cursor:default}
+  .annot-mini .note.ro .grip,.annot-mini .note.ro .del{display:none}
+  .annot-mini .note.ro .body{font-size:11px;padding:2px 5px;color:var(--red);font-weight:600}
+  .annot-mini .check.ro{font-size:22px}
+  .annot-layer.ro{pointer-events:none}
+  .badge{display:inline-block;font-size:12px;padding:3px 10px;border-radius:20px;font-weight:700}
+  .badge.A{background:var(--green-soft);color:var(--green)}
+  .badge.B{background:#e7f0ff;color:var(--brand)}
+  .badge.C{background:var(--amber-soft);color:var(--amber)}
+  .badge.D{background:var(--red-soft);color:var(--red)}
+  .status{display:inline-block;font-size:12px;padding:3px 10px;border-radius:20px;font-weight:700}
+  .status.todo{background:var(--amber-soft);color:var(--amber)}
+  .status.done{background:var(--green-soft);color:var(--green)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;cursor:pointer;transition:.15s;position:relative}
+  .tile:hover{border-color:var(--brand);box-shadow:var(--shadow);transform:translateY(-2px)}
+  .tile .nm{font-size:16px;font-weight:700}
+  .tile .cl{font-size:12px;color:var(--muted);margin-top:2px}
+  .tile .meta{font-size:12px;color:var(--muted);margin-top:8px;display:flex;gap:10px;flex-wrap:wrap}
+  .pill{background:var(--brand-soft);color:var(--brand);border-radius:8px;padding:2px 8px;font-weight:600}
+  .tile-del{position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;border:none;background:rgba(220,38,38,.12);color:var(--red);font-size:15px;line-height:24px;cursor:pointer;padding:0;z-index:2}
+  .tile-del:hover{background:var(--red);color:#fff}
+  .empty{color:var(--muted);text-align:center;padding:30px;font-size:13px}
+  .rec{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:#fcfdff}
+  .rec .hd{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .rec .hd .who{font-weight:700;font-size:15px}
+  .rec .date{color:var(--muted);font-size:12px}
+  .rec .body{font-size:13px;color:#374151}
+  .rec .kv{margin:4px 0}
+  .rec .kv b{color:var(--muted);font-weight:600;margin-right:6px}
+  .rec img.thumb{margin-top:8px;max-width:160px;max-height:160px;border-radius:8px;border:1px solid var(--line);cursor:pointer}
+  .sect{margin-top:16px}
+  .sect .ttl{font-size:14px;font-weight:700;color:var(--brand);margin-bottom:8px;border-left:4px solid var(--brand);padding-left:8px}
+  .hidden{display:none!important}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#1f2a37;color:#fff;
+    padding:11px 20px;border-radius:12px;font-size:14px;box-shadow:var(--shadow);z-index:99;opacity:0;transition:.25s;pointer-events:none}
+  .toast.show{opacity:1}
+  .del-x{float:right;color:var(--red);cursor:pointer;font-weight:700;border:none;background:none;font-size:13px}
+  .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  .stat{flex:1;min-width:140px;background:linear-gradient(135deg,#eef3ff,#fff);border:1px solid var(--line);
+    border-radius:12px;padding:14px}
+  .stat .n{font-size:24px;font-weight:800;color:var(--brand)}
+  .stat .l{font-size:12px;color:var(--muted)}
+  .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+  .modal-bg.show{display:flex}
+  .modal{background:#fff;border-radius:14px;max-width:420px;width:100%;padding:22px;box-shadow:var(--shadow)}
+  .modal h3{margin:0 0 14px;font-size:16px}
+  .file-drop{border:2px dashed var(--line);border-radius:12px;padding:18px;text-align:center;color:var(--muted);cursor:pointer;background:#fafcff}
+  .file-drop:hover{border-color:var(--brand);color:var(--brand)}
+  @media(max-width:560px){main{padding:14px 10px 50px}.row{gap:8px}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo">📚</div>
+  <div>
+    <h1>乐学园晚托作业辅导工作台</h1>
+    <div class="sub">作业登记 · 周回访跟进 · 试卷分析 — 云端共享，多手机实时同步（每8秒）</div>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="home" class="active">🏠 工作台</button>
+  <button data-tab="hw">✏️ 作业登记</button>
+  <button data-tab="wk">📞 周回访</button>
+  <button data-tab="exam">📝 试卷分析</button>
+  <button data-tab="archive">🗂️ 学生档案</button>
+</nav>
+
+<main id="app"></main>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modalBox"></div>
+</div>
+<div id="loginMask" style="position:fixed;inset:0;background:rgba(31,41,55,.55);display:flex;align-items:center;justify-content:center;z-index:9999">
+  <div style="background:#fff;border-radius:16px;padding:28px 26px;width:min(90vw,340px);box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center">
+    <div style="font-size:30px;margin-bottom:6px">🔒</div>
+    <h2 style="margin:0 0 4px;font-size:19px;color:#2f6fed">乐学园工作台</h2>
+    <p style="margin:0 0 16px;color:#6b7280;font-size:13px">请输入访问密码进入</p>
+    <input id="pwInput" type="password" placeholder="访问密码" style="width:100%;padding:11px 12px;border:1.5px solid #d9e0ec;border-radius:10px;font-size:15px;box-sizing:border-box" />
+    <button id="pwBtn" style="margin-top:12px;width:100%;padding:11px;border:none;border-radius:10px;background:#22c55e;color:#fff;font-size:15px;font-weight:700;cursor:pointer">进入</button>
+    <div id="pwErr" style="color:#dc2626;font-size:13px;margin-top:10px;min-height:16px"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="./supabase.min.js"></script>
+<script>
+/* ============ 云端存储（直连 Supabase，多手机实时同步） ============ */
+const SUPABASE_URL='https://crrwjzpttcivzkhvuswe.supabase.co';
+const SUPABASE_ANON_KEY='sb_publishable_Y_T-jcXEfSM2bG118_z29A_UjGOcp02';
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const TABLES=['students','homework','followups','exams'];
+let _rev=0, _syncTimer=null, _syncing=false;
+const uid=()=> (crypto.randomUUID?crypto.randomUUID():'id'+Date.now()+Math.random().toString(16).slice(2));
+const getPw=()=> (localStorage.getItem('lx_pw')||'');
+async function apiGet(){
+  const out={};
+  for(const t of TABLES){
+    const {data,error}=await sb.from(t).select('id,data');
+    if(error)throw new Error(error.message||'读取失败');
+    out[t]=(data||[]).map(r=>r.data);
+  }
+  return out;
+}
+async function apiUpsert(store,rec){
+  const {error}=await sb.from(store).upsert({id:rec.id,data:rec},{onConflict:'id'});
+  if(error)throw new Error(error.message||'保存失败');
+  return rec;
+}
+async function apiDelete(store,id){
+  const {error}=await sb.from(store).delete().eq('id',id);
+  if(error)throw new Error(error.message||'删除失败');
+  return {ok:true};
+}
+async function putRec(s,rec){return await apiUpsert(s,rec);}
+async function delRec(s,id){return await apiDelete(s,id);}
+async function getAll(s){const d=await apiGet();return d[s]||[];}
+async function getRec(s,id){const d=await apiGet();return (d[s]||[]).find(x=>x.id===id);}
+async function byIndex(s,idx,val){const d=await apiGet();return (d[s]||[]).filter(x=>x[idx]===val);}
+
+/* ============ 工具函数 ============ */
+const $=s=>document.querySelector(s);
+function applyAttrs(e,a){for(const k in a){if(k==='class')e.className=a[k];else if(k==='html')e.innerHTML=a[k];else if(k.startsWith('on'))e.addEventListener(k.slice(2),a[k]);else e.setAttribute(k,a[k]);}}
+function el(t,a,h,txt){
+  const e=document.createElement(t);
+  if(a){ if(typeof a==='string'){ if(a) e.className=a; } else applyAttrs(e,a); }
+  if(h){ if(typeof h==='string') e.innerHTML=h; else applyAttrs(e,h); }
+  if(txt!==undefined) e.textContent=txt;
+  return e;
+}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
+function pad(n){return (n<10?'0':'')+n;}
+function localISO(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function todayISO(){return localISO(new Date());}
+function fmtDate(iso){return iso||'';}
+function escapeHtml(s){return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function weekStart(iso){const d=new Date(iso+'T00:00:00');const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);return localISO(d);}
+function weekLabel(iso){const s=weekStart(iso);const e=new Date(s+'T00:00:00');e.setDate(e.getDate()+6);return s+' ~ '+localISO(e);}
+
+/* ============ 全局状态 ============ */
+let students=[], homework=[], followups=[], exams=[];
+async function loadAll(){const d=await apiGet();students=d.students||[];homework=d.homework||[];followups=d.followups||[];exams=d.exams||[];if(typeof d.rev==='number')_rev=d.rev;}
+/* 多端轮询同步：每8秒全量拉取，空闲时（未在输入框打字）自动刷新当前页 */
+function startSync(){
+  if(_syncTimer)return;
+  _syncTimer=setInterval(async()=>{
+    if(_syncing)return;
+    const ae=document.activeElement;
+    if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'||ae.isContentEditable))return;
+    _syncing=true;
+    try{
+      const d=await apiGet();
+      students=d.students||[];homework=d.homework||[];followups=d.followups||[];exams=d.exams||[];
+      const cur=[...tabs.children].find(x=>x.classList.contains('active'));
+      if(cur)render(cur.dataset.tab);
+    }catch(e){}finally{_syncing=false;}
+  },8000);
+}
+
+/* ============ 路由 ============ */
+const tabs=$('#tabs');
+tabs.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  [...tabs.children].forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  render(b.dataset.tab);});
+
+function render(tab){
+  $('#app').innerHTML='';
+  if(tab==='home')homeView();
+  else if(tab==='hw')hwView();
+  else if(tab==='wk')wkView();
+  else if(tab==='exam')examView();
+  else if(tab==='archive')archiveView();
+}
+
+/* ============ 工作台首页 ============ */
+function homeView(){
+  const c=el('div','card',`<h2>🏠 工作台概览 <span class="tag">今日 ${todayISO()}</span></h2>`);
+  const stats=el('div','stat-row');
+  stats.appendChild(el('div','stat',`<div class="n">${students.length}</div><div class="l">在读学生</div>`));
+  stats.appendChild(el('div','stat',`<div class="n">${homework.length}</div><div class="l">作业登记记录</div>`));
+  stats.appendChild(el('div','stat',`<div class="n">${followups.filter(f=>f.status==='todo').length}</div><div class="l">待回访</div>`));
+  stats.appendChild(el('div','stat',`<div class="n">${exams.length}</div><div class="l">试卷分析</div>`));
+  c.appendChild(stats);
+
+  const hint=el('div','hint','💡 三步上手：① 在「作业登记」上传作业照片并写备注 → ② 在「周回访」按周生成回访 → ③ 在「试卷分析」上传试卷登成绩。所有记录都会自动按学生归档到「学生档案」。');
+  c.appendChild(hint);
+
+  // 学生管理
+  const sm=el('div','sect');sm.appendChild(el('div','ttl','学生管理（姓名 + 班级）'));
+  const addRow=el('div','row');
+  const nm=el('input',{type:'text',placeholder:'学生姓名',id:'newName'});
+  const cl=el('input',{type:'text',placeholder:'班级，如 三(2)班',id:'newClass'});
+  const addBtn=el('button','btn',{onclick:addStudent},'➕ 添加学生');
+  const col1=el('div','col');col1.appendChild(nm);const col2=el('div','col');col2.appendChild(cl);
+  const col3=el('div','col',{style:'flex:0 0 150px'});col3.appendChild(addBtn);
+  addRow.appendChild(col1);addRow.appendChild(col2);addRow.appendChild(col3);
+  sm.appendChild(addRow);
+  c.appendChild(sm);
+
+  const grid=el('div','grid');grid.style.marginTop='12px';
+  if(students.length===0)grid.appendChild(el('div','empty','还没有学生，先添加一名学生吧～'));
+  students.forEach(s=>{
+    const t=el('div','tile',{onclick:()=>{goArchive(s.id)}});
+    const del=el('button','tile-del',{onclick:async(e)=>{e.stopPropagation();await deleteStudent(s.id,s.name);}},'×');
+    t.appendChild(del);
+    t.appendChild(el('div','nm',escapeHtml(s.name)));
+    t.appendChild(el('div','cl',escapeHtml(s.className||'未设班级')));
+    const counts=el('div','meta');
+    counts.appendChild(el('span','pill',`作业 ${homework.filter(h=>h.studentId===s.id).length}`));
+    counts.appendChild(el('span','pill',`回访 ${followups.filter(f=>f.studentId===s.id).length}`));
+    counts.appendChild(el('span','pill',`试卷 ${exams.filter(x=>x.studentId===s.id).length}`));
+    t.appendChild(counts);
+    grid.appendChild(t);
+  });
+  c.appendChild(grid);
+  $('#app').appendChild(c);
+}
+async function addStudent(){
+  const name=$('#newName').value.trim();const className=$('#newClass').value.trim();
+  if(!name){toast('请输入学生姓名');return;}
+  await putRec('students',{id:uid(),name,className});
+  await loadAll();homeView();toast('已添加学生：'+name);
+}
+async function deleteStudent(id,name){
+  const hwN=homework.filter(h=>h.studentId===id).length;
+  const wkN=followups.filter(f=>f.studentId===id).length;
+  const exN=exams.filter(x=>x.studentId===id).length;
+  const msg=`确定删除学生「${name}」吗？\n该学生的 ${hwN} 条作业、${wkN} 条周回访、${exN} 条试卷记录也会一并删除，且无法恢复。`;
+  if(!confirm(msg))return;
+  await delRec('students',id);
+  for(const h of homework.filter(h=>h.studentId===id))await delRec('homework',h.id);
+  for(const f of followups.filter(f=>f.studentId===id))await delRec('followups',f.id);
+  for(const x of exams.filter(x=>x.studentId===id))await delRec('exams',x.id);
+  await loadAll();homeView();toast('已删除学生：'+name);
+}
+function goArchive(id){[...tabs.children].forEach(x=>x.classList.toggle('active',x.dataset.tab==='archive'));render('archive');setTimeout(()=>{$('#arcSel').value=id;arcChange();},0);}
+
+/* ============ 功能1：作业登记 ============ */
+let hwState={img:null,annos:[],imgW:0,imgH:0};
+let hwEditingId=null;
+function hwView(){
+  const c=el('div','card',`<h2>✏️ 功能1 · 作业拍照登记 + 图片备注</h2>`);
+  c.appendChild(el('div','hint','上传作业登记本照片 → 在照片上点「添加文字」写备注、点「添加✓」标记完成 → 备注会自动提取到下方「图片备注」，并与学生当日数据绑定。'));
+
+  // 选择学生 + 班级 + 日期
+  const row=el('div','row');
+  const colS=el('div','col');
+  colS.appendChild(el('label','fld','学生'));
+  const sel=el('select',{id:'hwStudent'});sel.appendChild(el('option',{value:''},'— 请选择学生 —'));
+  students.forEach(s=>sel.appendChild(el('option',{value:s.id},escapeHtml(s.name+(s.className?'（'+s.className+'）':'')))));
+  colS.appendChild(sel);
+  const colD=el('div','col',{style:'flex:0 0 200px'});
+  colD.appendChild(el('label','fld','日期'));
+  colD.appendChild(el('input',{type:'date',id:'hwDate',value:todayISO()}));
+  row.appendChild(colS);row.appendChild(colD);c.appendChild(row);
+
+  // 上传
+  const up=el('div','file-drop',{id:'hwDrop',onclick:()=>$('#hwFile').click()},'📷 点击上传作业登记本照片');
+  up.style.marginTop='12px';
+  const file=el('input',{type:'file',accept:'image/*',id:'hwFile',style:'display:none'});
+  c.appendChild(up);c.appendChild(file);
+
+  // 标注区
+  const wrap=el('div','annot-wrap',{id:'hwWrap',style:'display:none;margin-top:12px'});
+  const img=el('img',{id:'hwImg'});const layer=el('div','annot-layer',{id:'hwLayer'});
+  wrap.appendChild(img);wrap.appendChild(layer);c.appendChild(wrap);
+
+  // 工具栏
+  const tb=el('div','toolbar',{id:'hwTb',style:'display:none;margin-top:12px'});
+  tb.appendChild(el('button','btn ghost',{onclick:addTextNote},'➕ 添加文字备注'));
+  tb.appendChild(el('button','btn ghost',{onclick:addCheckNote},'✅ 添加完成勾 ✓'));
+  tb.appendChild(el('span','',{html:'<span style="font-size:12px;color:#6b7280;align-self:center">点击按钮即在照片上添加；可拖动定位，点右上角×删除，点框内直接输入文字</span>'}));
+  c.appendChild(tb);
+
+  // 自动提取的备注 + 学情 + 补充任务
+  c.appendChild(el('label','fld','图片备注（自动从图上提取，可修改）'));
+  c.appendChild(el('textarea',{id:'hwNote',placeholder:'在图上写的文字会在这里自动汇总…'}));
+  c.appendChild(el('label',{class:'fld',style:'color:#1e3a8a;font-weight:800;font-size:15px'},'补充任务（手动填写，如：订正第3题、背诵古诗、重做口算）'));
+  c.appendChild(el('textarea',{id:'hwTask',placeholder:'老师额外布置的巩固任务…'}));
+  c.appendChild(el('label','fld','当晚学习情况（老师补充总结）'));
+  c.appendChild(el('textarea',{id:'hwStatus',placeholder:'例如：数学口算完成较好，语文阅读理解需加强…'}));
+
+  // 已通知接送
+  const notiRow=el('div','row',{style:'align-items:center;gap:9px;margin-top:8px'});
+  const noti=el('input',{type:'checkbox',id:'hwNotified',style:'width:18px;height:18px;accent-color:#22c55e'});
+  notiRow.appendChild(noti);
+  notiRow.appendChild(el('span','',{html:'<span style="font-size:14px;color:#374151">已通知家长来接送</span>'}));
+  c.appendChild(notiRow);
+
+  const save=el('button',{id:'hwSaveBtn',class:'btn green',onclick:saveHw,style:'margin-top:14px'},'💾 保存作业记录');
+  c.appendChild(save);
+
+  // 已有记录
+  const list=el('div','sect');list.appendChild(el('div','ttl','今日 / 近期作业记录'));
+  c.appendChild(list);
+  renderHwList(list);
+
+  $('#app').appendChild(c);
+
+  file.addEventListener('change',e=>{
+    const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+    rd.onload=ev=>{hwState.img=ev.target.result;img.src=ev.target.result;
+      wrap.style.display='inline-block';tb.style.display='flex';up.textContent='📷 已选照片，可重新点击更换';
+      img.onload=()=>{hwState.imgW=img.naturalWidth;hwState.imgH=img.naturalHeight;};
+    };rd.readAsDataURL(f);
+  });
+}
+function addTextNote(){
+  if(!hwState.img){toast('请先上传作业照片');return;}
+  const id=uid();const n=hwState.annos.length;
+  const a={id,type:'text',xPct:50+((n*7)%26)-13,yPct:42+((n*9)%26)-13,text:''};
+  hwState.annos.push(a);const node=renderAnno(a);syncHwNote();
+  const body=node?node.querySelector('.body'):null;if(body)body.focus();
+  toast('已在照片上添加文字框，点框直接输入');
+}
+function addCheckNote(){
+  if(!hwState.img){toast('请先上传作业照片');return;}
+  const id=uid();const n=hwState.annos.length;
+  const a={id,type:'check',xPct:50+((n*7)%26)-13,yPct:42+((n*9)%26)-13,text:''};
+  hwState.annos.push(a);renderAnno(a);syncHwNote();
+}
+function renderAnno(a){
+  const layer=$('#hwLayer');
+  if(a.type==='text'){
+    const d=el('div','note');d.style.left=a.xPct+'%';d.style.top=a.yPct+'%';
+    d.appendChild(el('span','grip','⠿ 拖动'));
+    const body=el('div','body');body.contentEditable='true';body.textContent=a.text||'';
+    d.appendChild(body);
+    const x=el('button','del',{onclick:()=>removeAnno(a.id,d)},'×');d.appendChild(x);
+    body.addEventListener('blur',()=>{a.text=body.textContent.trim();syncHwNote();});
+    makeDraggable(d.querySelector('.grip'),a,d);layer.appendChild(d);return d;
+  }else{
+    const s=el('div','check');s.style.left=a.xPct+'%';s.style.top=a.yPct+'%';
+    const x=el('button','del',{onclick:()=>removeAnno(a.id,s)},'×');s.appendChild(x);
+    makeDraggable(s,a,s);layer.appendChild(s);return s;
+  }
+}
+function removeAnno(id,node){hwState.annos=hwState.annos.filter(a=>a.id!==id);node.remove();syncHwNote();}
+function paintAnnos(imgEl,layerEl,annos){
+  layerEl.innerHTML='';
+  (annos||[]).forEach(a=>{
+    if(a.type==='text'){
+      const d=document.createElement('div');d.className='note ro';d.style.left=a.xPct+'%';d.style.top=a.yPct+'%';
+      const bd=document.createElement('div');bd.className='body';bd.textContent=a.text||'';d.appendChild(bd);layerEl.appendChild(d);
+    }else{
+      const s=document.createElement('div');s.className='check ro';s.style.left=a.xPct+'%';s.style.top=a.yPct+'%';layerEl.appendChild(s);
+    }
+  });
+}
+function miniAnno(image,annos){
+  const wrap=el('div','annot-mini');const im=el('img',{src:image});const ly=el('div','annot-layer ro');
+  wrap.appendChild(im);wrap.appendChild(ly);paintAnnos(im,ly,annos);return wrap;
+}
+function makeDraggable(handle,a,node){
+  handle.addEventListener('pointerdown',e=>{if(e.target.classList.contains('del'))return;e.preventDefault();
+    handle.setPointerCapture(e.pointerId);const wrap=$('#hwWrap');const move=ev=>{const r=wrap.getBoundingClientRect();
+      a.xPct=Math.max(2,Math.min(98,((ev.clientX-r.left)/r.width)*100));
+      a.yPct=Math.max(2,Math.min(98,((ev.clientY-r.top)/r.height)*100));
+      node.style.left=a.xPct+'%';node.style.top=a.yPct+'%';};
+    const up=ev=>{handle.releasePointerCapture(e.pointerId);handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',up);};
+    handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',up);
+  });
+}
+function syncHwNote(){
+  const txt=hwState.annos.filter(a=>a.type==='text'&&a.text&&a.text!=='备注').map(a=>a.text).join('；');
+  $('#hwNote').value=txt;
+}
+async function saveHw(){
+  const sid=$('#hwStudent').value;const date=$('#hwDate').value;
+  if(!sid){toast('请先选择学生');return;}
+  if(!hwState.img){toast('请先上传作业照片');return;}
+  const note=$('#hwNote').value.trim();const status=$('#hwStatus').value.trim();const task=$('#hwTask').value.trim();const notified=!!$('#hwNotified').checked;
+  if(!note&&!status&&!task){toast('请填写图片备注 / 补充任务 / 当晚学习情况');return;}
+  const st=students.find(s=>s.id===sid);
+  const rec={id:hwEditingId||uid(),studentId:sid,studentName:st.name,className:st.className,
+    date,image:hwState.img,annotations:JSON.parse(JSON.stringify(hwState.annos)),
+    note,status,task,notified,createdAt:hwEditingId?(homework.find(x=>x.id===hwEditingId)||{}).createdAt||Date.now():Date.now()};
+  const isEdit=!!hwEditingId;
+  await putRec('homework',rec);
+  await loadAll();
+  // 重置
+  hwEditingId=null;hwState={img:null,annos:[],imgW:0,imgH:0};
+  $('#hwFile').value='';$('#hwImg').src='';$('#hwWrap').style.display='none';$('#hwTb').style.display='none';
+  $('#hwDrop').textContent='📷 点击上传作业登记本照片';$('#hwNote').value='';$('#hwTask').value='';$('#hwStatus').value='';$('#hwNotified').checked=false;
+  const sb=$('#hwSaveBtn');if(sb)sb.textContent='💾 保存作业记录';
+  render('hw');
+  // 以图片形式弹窗预览
+  showHwImagePopup(rec);
+  toast(isEdit?'已更新作业记录':'作业记录已保存');
+}
+function renderHwList(list){
+  const items=homework.slice().sort((a,b)=>b.createdAt-a.createdAt).slice(0,15);
+  if(items.length===0){list.appendChild(el('div','empty','还没有作业记录'));return;}
+  items.forEach(h=>{
+    const r=el('div','rec');
+    r.innerHTML=`<div class="hd"><span class="who">${escapeHtml(h.studentName)}</span><span class="date">${fmtDate(h.date)} · ${escapeHtml(h.className||'')}</span></div>`;
+    const b=el('div','body');
+    if(h.note)b.appendChild(el('div','kv',{html:`<b>图片备注</b>${escapeHtml(h.note)}`}));
+    if(h.task)b.appendChild(el('div','kv',{html:`<b>补充任务</b>${escapeHtml(h.task)}`}));
+    if(h.notified!==undefined&&h.notified!==null)b.appendChild(el('div','kv',{html:`<b>已通知接送</b>${h.notified?'是':'否'}`}));
+    if(h.status)b.appendChild(el('div','kv',{html:`<b>当晚学情</b>${escapeHtml(h.status)}`}));
+    if(h.image)b.appendChild(miniAnno(h.image,h.annotations));
+    const del=el('button','del-x',{onclick:async()=>{if(confirm('删除这条作业记录？')){await delRec('homework',h.id);await loadAll();render('hw');}}},'删除');
+    const edt=el('button','del-x',{onclick:()=>editHw(h.id),style:'background:var(--brand-soft);color:var(--brand);margin-right:6px'},'修改');
+    r.appendChild(edt);r.appendChild(del);r.appendChild(b);list.appendChild(r);
+  });
+}
+function editHw(id){
+  const h=homework.find(x=>x.id===id);if(!h)return;
+  render('hw');
+  $('#hwStudent').value=h.studentId;$('#hwDate').value=h.date;
+  hwState={img:h.image,annos:JSON.parse(JSON.stringify(h.annotations||[])),imgW:0,imgH:0};
+  $('#hwImg').src=h.image;$('#hwWrap').style.display='inline-block';$('#hwTb').style.display='flex';
+  $('#hwDrop').textContent='📷 已选照片，可重新点击更换';
+  const layer=$('#hwLayer');layer.innerHTML='';hwState.annos.forEach(a=>renderAnno(a));
+  $('#hwNote').value=h.note||'';$('#hwTask').value=h.task||'';$('#hwStatus').value=h.status||'';$('#hwNotified').checked=!!h.notified;
+  hwEditingId=h.id;const sb=$('#hwSaveBtn');if(sb)sb.textContent='💾 保存修改';
+  toast('已载入该记录，修改后保存即更新（可多次修改）');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ============ 功能2：周回访 ============ */
+function wkView(){
+  const c=el('div','card',`<h2>📞 功能2 · 每周回访跟进</h2>`);
+  c.appendChild(el('div','hint','按学生 + 自然周，从本周作业/学情自动生成回访草稿；填写回访内容、回访时间、家长反馈，标记「待回访 / 已回访」。'));
+
+  const row=el('div','row');
+  const colS=el('div','col');colS.appendChild(el('label','fld','学生'));
+  const sel=el('select',{id:'wkStudent'});sel.appendChild(el('option',{value:''},'— 请选择学生 —'));
+  students.forEach(s=>sel.appendChild(el('option',{value:s.id},escapeHtml(s.name))));
+  colS.appendChild(sel);
+  const colW=el('div','col',{style:'flex:0 0 220px'});colW.appendChild(el('label','fld','所属周（自动取周一）'));
+  colW.appendChild(el('input',{type:'date',id:'wkWeek',value:todayISO(),onchange:()=>{}}));
+  row.appendChild(colS);row.appendChild(colW);c.appendChild(row);
+
+  const tb=el('div','toolbar',{style:'margin-top:12px'});
+  tb.appendChild(el('button','btn ghost',{onclick:genWeekDraft},'🪄 生成本周回访草稿'));
+  c.appendChild(tb);
+
+  c.appendChild(el('label','fld','回访内容（自动草稿，可修改）'));
+  c.appendChild(el('textarea',{id:'wkContent',placeholder:'点击上方「生成本周回访草稿」自动汇总本周作业与学情…'}));
+  c.appendChild(el('label','fld','回访时间'));
+  c.appendChild(el('input',{type:'datetime-local',id:'wkTime',value:todayISO()+'T18:00'}));
+  c.appendChild(el('label','fld','家长反馈'));
+  c.appendChild(el('textarea',{id:'wkFeedback',placeholder:'家长意见、配合事项等…'}));
+
+  const srow=el('div','row',{style:'margin-top:12px'});
+  const colSt=el('div','col');colSt.appendChild(el('label','fld','回访状态'));
+  const st=el('select',{id:'wkStatus'});st.appendChild(el('option',{value:'todo'},'待回访'));st.appendChild(el('option',{value:'done'},'已回访'));
+  colSt.appendChild(st);srow.appendChild(colSt);c.appendChild(srow);
+
+  c.appendChild(el('button','btn green',{onclick:saveWk,style:'margin-top:14px'},'💾 保存回访记录'));
+
+  const list=el('div','sect');list.appendChild(el('div','ttl','回访记录'));c.appendChild(list);
+  renderWkList(list);
+  $('#app').appendChild(c);
+}
+function genWeekDraft(){
+  const sid=$('#wkStudent').value;const wd=$('#wkWeek').value;
+  if(!sid){toast('请先选择学生');return;}
+  const ws=weekStart(wd);
+  const items=homework.filter(h=>h.studentId===sid && weekStart(h.date)===ws).sort((a,b)=>a.date.localeCompare(b.date));
+  if(items.length===0){toast('本周还没有作业记录');return;}
+  const lines=items.map(h=>`【${h.date}】${h.note?('备注：'+h.note+'；'):''}${h.task?('补充任务：'+h.task+'；'):''}${h.status?('学情：'+h.status):''}`);
+  $('#wkContent').value=`本周（${weekLabel(wd)}）共登记作业 ${items.length} 次。\n`+lines.join('\n')+'\n建议与家长沟通本周学习表现与需加强事项。';
+  toast('已生成本周回访草稿');
+}
+async function saveWk(){
+  const sid=$('#wkStudent').value;const wd=$('#wkWeek').value;
+  if(!sid){toast('请先选择学生');return;}
+  const content=$('#wkContent').value.trim();
+  const st=students.find(s=>s.id===sid);
+  await putRec('followups',{id:uid(),studentId:sid,studentName:st.name,className:st.className,
+    weekStart:weekStart(wd),weekLabel:weekLabel(wd),content,
+    visitTime:$('#wkTime').value,feedback:$('#wkFeedback').value.trim(),
+    status:$('#wkStatus').value,createdAt:Date.now()});
+  await loadAll();toast('回访记录已保存');
+  $('#wkContent').value='';$('#wkFeedback').value='';$('#wkStatus').value='todo';render('wk');
+}
+function renderWkList(list){
+  const items=followups.slice().sort((a,b)=>b.createdAt-a.createdAt);
+  if(items.length===0){list.appendChild(el('div','empty','还没有回访记录'));return;}
+  items.forEach(f=>{
+    const r=el('div','rec');
+    r.innerHTML=`<div class="hd"><span class="who">${escapeHtml(f.studentName)}</span>
+      <span class="status ${f.status}">${f.status==='done'?'已回访':'待回访'}</span></div>
+      <div class="date" style="color:#6b7280;font-size:12px;margin-bottom:6px">${escapeHtml(f.weekLabel)}</div>`;
+    const b=el('div','body');
+    if(f.content)b.appendChild(el('div','kv',{html:`<b>回访内容</b>${escapeHtml(f.content).replace(/\n/g,'<br>')}`}));
+    if(f.visitTime)b.appendChild(el('div','kv',{html:`<b>回访时间</b>${escapeHtml(f.visitTime)}`}));
+    if(f.feedback)b.appendChild(el('div','kv',{html:`<b>家长反馈</b>${escapeHtml(f.feedback)}`}));
+    const del=el('button','del-x',{onclick:async()=>{if(confirm('删除这条回访记录？')){await delRec('followups',f.id);await loadAll();render('wk');}}},'删除');
+    const toggle=el('button','btn sm warn',{onclick:async()=>{f.status=f.status==='done'?'todo':'done';await putRec('followups',f);await loadAll();render('wk');}},f.status==='done'?'↩ 标记待回访':'✓ 标记已回访');
+    r.appendChild(toggle);r.appendChild(del);r.appendChild(b);list.appendChild(r);
+  });
+}
+
+/* ============ 功能3：试卷分析 ============ */
+let examImg=null;
+function examView(){
+  const c=el('div','card',`<h2>📝 功能3 · 试卷上传 + 分析 + 成绩等级</h2>`);
+  c.appendChild(el('div','hint','上传试卷照片，录入名称/考试日期/分数，选择等级 A/B/C/D，系统自动生成简单分析，再补充错题要点与薄弱知识点，归档到学生档案。'));
+
+  const row=el('div','row');
+  const colS=el('div','col');colS.appendChild(el('label','fld','学生'));
+  const sel=el('select',{id:'exStudent'});sel.appendChild(el('option',{value:''},'— 请选择学生 —'));
+  students.forEach(s=>sel.appendChild(el('option',{value:s.id},escapeHtml(s.name))));
+  colS.appendChild(sel);
+  const colN=el('div','col');colN.appendChild(el('label','fld','试卷名称'));colN.appendChild(el('input',{type:'text',id:'exName',placeholder:'如 第三单元测试'}));
+  row.appendChild(colS);row.appendChild(colN);c.appendChild(row);
+
+  const row2=el('div','row');
+  const colD=el('div','col',{style:'flex:1'});colD.appendChild(el('label','fld','考试日期'));colD.appendChild(el('input',{type:'date',id:'exDate',value:todayISO()}));
+  const colSc=el('div','col',{style:'flex:1'});colSc.appendChild(el('label','fld','分数'));colSc.appendChild(el('input',{type:'number',id:'exScore',placeholder:'如 88',min:'0',max:'150'}));
+  const colLv=el('div','col',{style:'flex:1'});colLv.appendChild(el('label','fld','成绩等级'));
+  const lv=el('select',{id:'exLevel'});['A','B','C','D'].forEach(x=>lv.appendChild(el('option',{value:x},x)));colLv.appendChild(lv);
+  row2.appendChild(colD);row2.appendChild(colSc);row2.appendChild(colLv);c.appendChild(row2);
+
+  const up=el('div','file-drop',{id:'exDrop',onclick:()=>$('#exFile').click()},'📷 点击上传试卷照片（可选）');
+  up.style.marginTop='12px';const file=el('input',{type:'file',accept:'image/*',id:'exFile',style:'display:none'});
+  c.appendChild(up);c.appendChild(file);
+  const thumb=el('img','thumb',{id:'exThumb',style:'display:none;margin-top:10px'});
+  c.appendChild(thumb);
+
+  c.appendChild(el('label','fld','自动试卷分析（系统生成，可修改）'));
+  c.appendChild(el('textarea',{id:'exAnaly'}));
+
+  const genRow=el('div','toolbar');genRow.appendChild(el('button','btn ghost',{onclick:genAnalysis},'🪄 自动生成分析'));c.appendChild(genRow);
+
+  c.appendChild(el('label','fld','错题要点'));
+  c.appendChild(el('textarea',{id:'exWrong',placeholder:'如：第3题单位换算错误、第5题应用题列式不清…'}));
+  c.appendChild(el('label','fld','薄弱知识点'));
+  c.appendChild(el('textarea',{id:'exWeak',placeholder:'如：小数加减法、阅读理解概括…'}));
+
+  c.appendChild(el('button','btn green',{onclick:saveExam,style:'margin-top:14px'},'💾 保存试卷记录'));
+
+  const list=el('div','sect');list.appendChild(el('div','ttl','试卷记录'));c.appendChild(list);
+  renderExamList(list);
+  $('#app').appendChild(c);
+
+  file.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+    rd.onload=ev=>{examImg=ev.target.result;thumb.src=examImg;thumb.style.display='block';up.textContent='📷 已选试卷照片，可重新点击更换';};
+    rd.readAsDataURL(f);});
+}
+function levelAuto(score){
+  if(score==null||isNaN(score))return '';
+  if(score>=90)return 'A';if(score>=80)return 'B';if(score>=60)return 'C';return 'D';
+}
+function genAnalysis(){
+  const score=parseFloat($('#exScore').value);const name=$('#exName').value.trim();
+  if(isNaN(score)){toast('请先填写分数');return;}
+  const lv=levelAuto(score);
+  const map={
+    A:'成绩优秀，知识点掌握扎实，建议保持并适当拓展提升。',
+    B:'成绩良好，整体掌握不错，个别知识点仍需巩固。',
+    C:'成绩中等，基础有待加强，建议增加针对性练习。',
+    D:'成绩偏弱，建议重点辅导薄弱知识点，夯实基础。'
+  };
+  $('#exLevel').value=lv;
+  $('#exAnaly').value=`【${name||'本次'}】得分 ${score}，等级 ${lv}。${map[lv]||''}`;
+  toast('已生成分析，等级自动判定为 '+lv);
+}
+async function saveExam(){
+  const sid=$('#exStudent').value;
+  if(!sid){toast('请先选择学生');return;}
+  const score=$('#exScore').value;const name=$('#exName').value.trim();
+  if(!name){toast('请填写试卷名称');return;}
+  const st=students.find(s=>s.id===sid);
+  const lv=$('#exLevel').value||levelAuto(parseFloat(score))||'';
+  await putRec('exams',{id:uid(),studentId:sid,studentName:st.name,className:st.className,
+    name,examDate:$('#exDate').value,score:score===''?null:parseFloat(score),level:lv,
+    analysis:$('#exAnaly').value.trim(),wrong:$('#exWrong').value.trim(),
+    weak:$('#exWeak').value.trim(),image:examImg,createdAt:Date.now()});
+  await loadAll();toast('试卷记录已保存');
+  examImg=null;$('#exFile').value='';$('#exThumb').style.display='none';$('#exDrop').textContent='📷 点击上传试卷照片（可选）';
+  ['#exName','#exScore','#exAnaly','#exWrong','#exWeak'].forEach(s=>$(s).value='');render('exam');
+}
+function renderExamList(list){
+  const items=exams.slice().sort((a,b)=>b.createdAt-a.createdAt);
+  if(items.length===0){list.appendChild(el('div','empty','还没有试卷记录'));return;}
+  items.forEach(x=>{
+    const r=el('div','rec');
+    r.innerHTML=`<div class="hd"><span class="who">${escapeHtml(x.studentName)}</span>
+      ${x.level?`<span class="badge ${x.level}">等级 ${x.level}</span>`:''}</div>
+      <div class="date" style="color:#6b7280;font-size:12px;margin-bottom:6px">${escapeHtml(x.name)} · ${fmtDate(x.examDate)} · 分数 ${x.score==null?'—':x.score}</div>`;
+    const b=el('div','body');
+    if(x.analysis)b.appendChild(el('div','kv',{html:`<b>分析</b>${escapeHtml(x.analysis).replace(/\n/g,'<br>')}`}));
+    if(x.wrong)b.appendChild(el('div','kv',{html:`<b>错题要点</b>${escapeHtml(x.wrong)}`}));
+    if(x.weak)b.appendChild(el('div','kv',{html:`<b>薄弱点</b>${escapeHtml(x.weak)}`}));
+    if(x.image)b.appendChild(el('img','thumb',{src:x.image,onclick:()=>previewImg(x.image)}));
+    const del=el('button','del-x',{onclick:async()=>{if(confirm('删除这条试卷记录？')){await delRec('exams',x.id);await loadAll();render('exam');}}},'删除');
+    r.appendChild(del);r.appendChild(b);list.appendChild(r);
+  });
+}
+
+/* ============ 学生档案 ============ */
+function archiveView(){
+  const c=el('div','card',`<h2>🗂️ 学生档案 · 按学生归档全部记录</h2>`);
+  c.appendChild(el('div','hint','选择学生即可查看其全部作业登记、周回访、试卷分析；支持导出/导入备份，防止数据丢失。'));
+
+  const row=el('div','row');
+  const col=el('div','col');col.appendChild(el('label','fld','选择学生'));
+  const sel=el('select',{id:'arcSel',onchange:arcChange});sel.appendChild(el('option',{value:''},'— 请选择学生 —'));
+  students.forEach(s=>sel.appendChild(el('option',{value:s.id},escapeHtml(s.name+(s.className?'（'+s.className+'）':'')))));
+  col.appendChild(sel);
+  const col2=el('div','col',{style:'flex:0 0 320px'});
+  const tb=el('div','toolbar',{style:'margin-top:22px'});
+  tb.appendChild(el('button','btn ghost sm',{onclick:exportAll},'⬇ 导出全部备份'));
+  tb.appendChild(el('button','btn ghost sm',{onclick:()=>$('#impFile').click()},'⬆ 导入备份'));
+  const imp=el('input',{type:'file',accept:'application/json',id:'impFile',style:'display:none',onchange:importAll});
+  col2.appendChild(tb);col2.appendChild(imp);
+  row.appendChild(col);row.appendChild(col2);c.appendChild(row);
+
+  const box=el('div',{id:'arcBox'});box.appendChild(el('div','empty','选择一名学生查看档案'));
+  c.appendChild(box);
+  $('#app').appendChild(c);
+}
+async function arcChange(){
+  const sid=$('#arcSel').value;const box=$('#arcBox');if(!sid){box.innerHTML='';box.appendChild(el('div','empty','选择一名学生查看档案'));return;}
+  const st=students.find(s=>s.id===sid);
+  box.innerHTML='';
+  const head=el('div','hd',{style:'display:flex;justify-content:space-between;align-items:center;margin-bottom:6px'});
+  head.appendChild(el('div','who',{html:`<b style="font-size:17px">${escapeHtml(st.name)}</b> <span style="color:#6b7280;font-size:13px">${escapeHtml(st.className||'')}</span>`}));
+  box.appendChild(head);
+
+  // 作业
+  const hw=homework.filter(h=>h.studentId===sid).sort((a,b)=>b.date.localeCompare(a.date));
+  box.appendChild(sectTitle(`📚 作业登记（${hw.length}）`));
+  if(hw.length===0)box.appendChild(el('div','empty','暂无'));
+  hw.forEach(h=>{const r=el('div','rec');r.innerHTML=`<div class="hd"><span class="who">${h.date}</span></div>`;
+    const b=el('div','body');if(h.note)b.appendChild(el('div','kv',{html:`<b>图片备注</b>${escapeHtml(h.note)}`}));
+    if(h.task)b.appendChild(el('div','kv',{html:`<b>补充任务</b>${escapeHtml(h.task)}`}));
+    if(h.notified!==undefined&&h.notified!==null)b.appendChild(el('div','kv',{html:`<b>已通知接送</b>${h.notified?'是':'否'}`}));
+    if(h.status)b.appendChild(el('div','kv',{html:`<b>当晚学情</b>${escapeHtml(h.status)}`}));
+    if(h.image)b.appendChild(miniAnno(h.image,h.annotations));
+    const edt=el('button','del-x',{onclick:()=>editHw(h.id),style:'background:var(--brand-soft);color:var(--brand);margin-right:6px'},'修改');
+    const del=el('button','del-x',{onclick:async()=>{if(confirm('删除这条作业记录？')){await delRec('homework',h.id);await loadAll();render('archive');}}},'删除');
+    r.appendChild(edt);r.appendChild(del);r.appendChild(b);box.appendChild(r);});
+
+  // 周回访
+  const wk=followups.filter(f=>f.studentId===sid).sort((a,b)=>b.createdAt-a.createdAt);
+  box.appendChild(sectTitle(`📞 周回访（${wk.length}）`));
+  if(wk.length===0)box.appendChild(el('div','empty','暂无'));
+  wk.forEach(f=>{const r=el('div','rec');r.innerHTML=`<div class="hd"><span class="who">${escapeHtml(f.weekLabel)}</span><span class="status ${f.status}">${f.status==='done'?'已回访':'待回访'}</span></div>`;
+    const b=el('div','body');if(f.content)b.appendChild(el('div','kv',{html:`<b>内容</b>${escapeHtml(f.content).replace(/\n/g,'<br>')}`}));
+    if(f.visitTime)b.appendChild(el('div','kv',{html:`<b>时间</b>${escapeHtml(f.visitTime)}`}));
+    if(f.feedback)b.appendChild(el('div','kv',{html:`<b>反馈</b>${escapeHtml(f.feedback)}`}));
+    r.appendChild(b);box.appendChild(r);});
+
+  // 试卷
+  const ex=exams.filter(x=>x.studentId===sid).sort((a,b)=>b.createdAt-a.createdAt);
+  box.appendChild(sectTitle(`📝 试卷分析（${ex.length}）`));
+  if(ex.length===0)box.appendChild(el('div','empty','暂无'));
+  ex.forEach(x=>{const r=el('div','rec');r.innerHTML=`<div class="hd"><span class="who">${escapeHtml(x.name)} · ${fmtDate(x.examDate)} · ${x.score==null?'—':x.score}分</span>${x.level?`<span class="badge ${x.level}">${x.level}</span>`:''}</div>`;
+    const b=el('div','body');if(x.analysis)b.appendChild(el('div','kv',{html:`<b>分析</b>${escapeHtml(x.analysis).replace(/\n/g,'<br>')}`}));
+    if(x.wrong)b.appendChild(el('div','kv',{html:`<b>错题</b>${escapeHtml(x.wrong)}`}));
+    if(x.weak)b.appendChild(el('div','kv',{html:`<b>薄弱</b>${escapeHtml(x.weak)}`}));
+    if(x.image)b.appendChild(el('img','thumb',{src:x.image,onclick:()=>previewImg(x.image)}));
+    r.appendChild(b);box.appendChild(r);});
+}
+function sectTitle(t){const d=el('div','sect');d.appendChild(el('div','ttl',t));return d;}
+
+/* ============ 图片预览 ============ */
+function previewImg(src){
+  const bg=$('#modalBg');const box=$('#modalBox');
+  box.innerHTML='';box.style.maxWidth='90vw';
+  const img=el('img',{src,style:'max-width:100%;max-height:80vh;border-radius:10px'});
+  const close=el('button','btn warn',{onclick:()=>bg.classList.remove('show'),style:'margin-top:10px;width:100%'},'关闭');
+  box.appendChild(img);box.appendChild(close);bg.classList.add('show');
+}
+
+/* ============ 作业记录 → 图片弹窗 ============ */
+function lineCount(ctx,text,maxW){
+  if(!text)return 0;let lines=1,line='';
+  for(const ch of String(text).split('')){
+    const t=line+ch;
+    if(ctx.measureText(t).width>maxW&&line){lines++;line=ch;}else line=t;
+  }
+  return lines;
+}
+function drawWrapped(ctx,text,x,y,maxW,lh){
+  let line='',yy=y;
+  for(const ch of String(text).split('')){
+    const t=line+ch;
+    if(ctx.measureText(t).width>maxW&&line){ctx.fillText(line,x,yy);line=ch;yy+=lh;}else line=t;
+  }
+  if(line)ctx.fillText(line,x,yy);
+  return yy+lh;
+}
+function showHwImagePopup(rec){
+  const W=760,pad=26;
+  const box=$('#modalBox'),bg=$('#modalBg');
+  box.innerHTML='';box.style.maxWidth='92vw';
+  box.appendChild(el('h3',{},'📋 作业记录（图片预览）'));
+  const ph=el('div',{style:'text-align:center;color:var(--muted);padding:30px 0'},'正在生成图片…');
+  box.appendChild(ph);
+  const close=el('button','btn warn',{onclick:()=>bg.classList.remove('show'),style:'margin-top:12px;width:100%'},'关闭');
+  box.appendChild(close);
+  bg.classList.add('show');
+
+  const img=new Image();
+  img.onload=()=>{
+    const maxW=W-2*pad, maxH=380;
+    const scale=Math.min(1,maxW/img.width,maxH/img.height);
+    const iw=Math.round(img.width*scale),ih=Math.round(img.height*scale);
+    const m=document.createElement('canvas').getContext('2d');
+    const sections=[];
+    if(rec.task)sections.push({label:'补充任务',text:rec.task,labelColor:'#1e3a8a',labelFont:'bold 20px sans-serif'});
+    if(rec.notified!==undefined&&rec.notified!==null)sections.push({label:'已通知接送',text:rec.notified?'已通知家长来接送':'未通知',labelColor:'#1e3a8a',labelFont:'bold 20px sans-serif'});
+    let textH=0;
+    m.font='14px sans-serif';
+    sections.forEach(s=>{textH+=34;textH+=lineCount(m,s.text,maxW)*22+10;});
+    const totalH=92+ih+18+textH+pad;
+    const cv=document.createElement('canvas');cv.width=W;cv.height=totalH;
+    const ctx=cv.getContext('2d');
+    // 背景
+    ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,totalH);
+    ctx.strokeStyle='#e5e9f0';ctx.lineWidth=2;ctx.strokeRect(8,8,W-16,totalH-16);
+    // 标题
+    ctx.fillStyle='#2f6fed';ctx.font='bold 22px sans-serif';ctx.textBaseline='top';
+    ctx.fillText('📚 乐学园·晚托作业记录',pad,18);
+    ctx.fillStyle='#374151';ctx.font='14px sans-serif';
+    ctx.fillText(`学生：${rec.studentName}    班级：${rec.className||'—'}    日期：${fmtDate(rec.date)}`,pad,50);
+    // 照片
+    let y=92;
+    ctx.drawImage(img,pad,y,iw,ih);
+    // 图上标注
+    (rec.annotations||[]).forEach(a=>{
+      const px=pad+(a.xPct/100)*iw, py=y+(a.yPct/100)*ih;
+      if(a.type==='text'){ctx.fillStyle='#dc2626';ctx.font='bold 18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(a.text||'',px,py);ctx.textAlign='left';ctx.textBaseline='top';}
+      else{ctx.fillStyle='#16a34a';ctx.font='bold 30px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText('✔',px,py);ctx.textAlign='left';ctx.textBaseline='top';}
+    });
+    y+=ih+18;
+    // 文本段落（仅补充任务）
+    sections.forEach(s=>{
+      ctx.fillStyle=s.labelColor;ctx.font=s.labelFont;ctx.fillText(s.label+'：',pad,y);y+=30;
+      ctx.fillStyle='#000';ctx.font='14px sans-serif';y=drawWrapped(ctx,s.text,pad,y,maxW,22);y+=14;
+    });
+    // 替换弹窗内容
+    const url=cv.toDataURL('image/png');
+    box.innerHTML='';box.style.maxWidth='92vw';
+    box.appendChild(el('h3',{},'📋 作业记录（图片预览）'));
+    box.appendChild(el('img',{src:url,style:'max-width:100%;max-height:76vh;border-radius:10px;border:1px solid var(--line)'}));
+    const dl=el('a',{href:url,download:`作业记录_${rec.studentName}_${rec.date}.png`,class:'btn green',
+      style:'display:block;text-align:center;text-decoration:none;margin-top:12px;padding:10px;border-radius:10px'},'⬇ 下载图片');
+    box.appendChild(dl);
+    box.appendChild(el('button','btn warn',{onclick:()=>bg.classList.remove('show'),style:'margin-top:10px;width:100%'},'关闭'));
+  };
+  img.onerror=()=>{ph.textContent='图片生成失败，请重试';};
+  img.src=rec.image;
+}
+
+/* ============ 备份导出/导入 ============ */
+async function exportAll(){
+  const data={students,homework,followups,exams,exportedAt:new Date().toISOString()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=el('a',{href:URL.createObjectURL(blob),download:'乐学园晚托备份_'+todayISO()+'.json'});document.body.appendChild(a);a.click();a.remove();
+  toast('已导出备份文件');
+}
+async function importAll(e){
+  const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=async ev=>{try{
+    const d=JSON.parse(ev.target.result);
+    if(d.students)for(const r of d.students)await putRec('students',r);
+    if(d.homework)for(const r of d.homework)await putRec('homework',r);
+    if(d.followups)for(const r of d.followups)await putRec('followups',r);
+    if(d.exams)for(const r of d.exams)await putRec('exams',r);
+    await loadAll();render('archive');toast('备份导入成功');
+  }catch(err){toast('导入失败：文件格式不正确');}};
+  rd.readAsText(f);e.target.value='';
+}
+
+/* ============ 访问密码 / 登录（本地校验，密码 1234） ============ */
+const APP_PW='1234';
+function showLogin(){const m=$('#loginMask');if(m)m.style.display='flex';}
+function hideLogin(){const m=$('#loginMask');if(m)m.style.display='none';}
+function boot(){
+  loadAll().then(()=>{render('home');startSync();}).catch(()=>toast('加载失败，请检查网络或刷新重试'));
+}
+function ensureAuth(){
+  const pw=localStorage.getItem('lx_pw');
+  if(pw===APP_PW){hideLogin();return true;}
+  localStorage.removeItem('lx_pw');showLogin();return false;
+}
+function doLogin(){
+  const pw=$('#pwInput').value.trim();
+  if(pw!==APP_PW){$('#pwErr').textContent='密码错误，请重试';return;}
+  localStorage.setItem('lx_pw',pw);$('#pwErr').textContent='';hideLogin();boot();
+}
+const _pwBtn=$('#pwBtn');if(_pwBtn)_pwBtn.addEventListener('click',doLogin);
+const _pwInp=$('#pwInput');if(_pwInp)_pwInp.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+
+/* ============ 启动 ============ */
+(function init(){
+  if(ensureAuth()) boot();
+})();
+</script>
+</body>
+</html>
