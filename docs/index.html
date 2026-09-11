@@ -208,6 +208,26 @@ function readAsDataURL(file){
     r.readAsDataURL(file);
   });
 }
+/* 预览专用：把任意图片（含 iPhone HEIC）用 canvas 转成压缩 JPEG 的 data URL。体积小、iOS 100% 能渲染，避免超大 base64 或 blob URL 不显示 */
+function fileToJpegDataUrl(file,maxW){
+  return new Promise((resolve,reject)=>{
+    const fr=new FileReader();
+    fr.onload=ev=>{
+      const im=new Image();
+      im.onload=()=>{
+        let w=im.naturalWidth||maxW,h=im.naturalHeight||maxW;
+        if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+        const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+        try{cv.getContext('2d').drawImage(im,0,0,w,h);}catch(e){reject(e);return;}
+        try{resolve(cv.toDataURL('image/jpeg',0.82));}catch(e){reject(e);}
+      };
+      im.onerror=()=>reject(new Error('图片解码失败'));
+      im.src=ev.target.result;
+    };
+    fr.onerror=()=>reject(new Error('读取文件失败'));
+    fr.readAsDataURL(file);
+  });
+}
 const getPw=()=> (localStorage.getItem('lx_pw')||'');
 async function apiGet(){
   const out={};
@@ -417,9 +437,7 @@ function hwView(){
   file.addEventListener('change',async e=>{
     toast('文件已选择：'+e.target.files.length+' 张');
     const f=e.target.files[0];if(!f){toast('未获取到文件，请重试');return;}
-    // 1) 立即本地预览（data URL 全平台可显示，含 iOS Safari；HEIC 也能秒出图）
-    const localUrl=await readAsDataURL(f);
-    hwState.img=localUrl;img.src=localUrl;
+    // 1) 显示预览区
     wrap.style.display='block';tb.style.display='flex';
     img.onclick=(ev)=>{
       if(ev.target!==img)return;
@@ -429,8 +447,13 @@ function hwView(){
       addTextNote(xPct,yPct);
     };
     img.onload=()=>{hwState.imgW=img.naturalWidth;hwState.imgH=img.naturalHeight;};
-    upText.textContent='⏳ 正在上传照片…';up.style.pointerEvents='none';
-    // 2) 后台转 JPEG 压缩后上传（兼容 iPhone HEIC / 安卓 / 电脑）
+    img.onerror=()=>{toast('照片显示失败，请换一张或重试');};
+    upText.textContent='⏳ 正在处理照片…';up.style.pointerEvents='none';
+    // 2) 本地预览：先转成压缩 JPEG data URL（iOS 必定渲染，HEIC/超大图都兼容）；失败再退回原始 data URL
+    try{
+      const du=await fileToJpegDataUrl(f,1280);hwState.img=du;img.src=du;
+    }catch(_){ try{ const du2=await readAsDataURL(f);hwState.img=du2;img.src=du2; }catch(__){} }
+    // 3) 后台转 JPEG 压缩后上传到 Supabase（兼容 iPhone HEIC / 安卓 / 电脑）
     try{
       const blob=await fileToJpegBlob(f,1280);
       const path='hw/'+uid()+'.jpg';
@@ -704,8 +727,10 @@ function examView(){
   $('#app').appendChild(c);
 
   file.addEventListener('change',async e=>{toast('文件已选择：'+e.target.files.length+' 张');const f=e.target.files[0];if(!f){toast('未获取到文件，请重试');return;}
-    const localUrl=await readAsDataURL(f);examImg=localUrl;thumb.src=localUrl;thumb.style.display='block';
-    upText.textContent='⏳ 正在上传照片…';up.style.pointerEvents='none';
+    thumb.onerror=()=>{toast('照片显示失败，请换一张或重试');};
+    upText.textContent='⏳ 正在处理照片…';up.style.pointerEvents='none';
+    try{ const du=await fileToJpegDataUrl(f,1280);examImg=du;thumb.src=du;thumb.style.display='block'; }
+    catch(_){ try{ const du2=await readAsDataURL(f);examImg=du2;thumb.src=du2;thumb.style.display='block'; }catch(__){} }
     try{
       const blob=await fileToJpegBlob(f,1280);
       const path='exams/'+uid()+'.jpg';
