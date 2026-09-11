@@ -366,7 +366,7 @@ function hwView(){
   const up=el('label','file-drop',{id:'hwDrop'});
   up.style.marginTop='12px';up.style.cursor='pointer';up.style.display='block';up.style.position='relative';up.style.overflow='hidden';
   const upText=el('span',{id:'hwDropText'},'📷 点击上传作业登记本照片');up.appendChild(upText);
-  const file=el('input',{type:'file',accept:'image/*',id:'hwFile',style:'position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:0;cursor:pointer'});
+  const file=el('input',{type:'file',accept:'image/*',id:'hwFile',style:'position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;opacity:0;font-size:100px;cursor:pointer'});
   up.appendChild(file);c.appendChild(up);
 
   // 标注区
@@ -407,7 +407,8 @@ function hwView(){
   $('#app').appendChild(c);
 
   file.addEventListener('change',async e=>{
-    const f=e.target.files[0];if(!f)return;
+    toast('文件已选择：'+e.target.files.length+' 张');
+    const f=e.target.files[0];if(!f){toast('未获取到文件，请重试');return;}
     // 1) 立即本地预览（不依赖上传，秒出图；HEIC 在手机本地也可显示）
     const localUrl=URL.createObjectURL(f);
     hwState.img=localUrl;img.src=localUrl;
@@ -644,7 +645,7 @@ function examView(){
   const up=el('label','file-drop',{id:'exDrop'});
   up.style.marginTop='12px';up.style.cursor='pointer';up.style.display='block';up.style.position='relative';up.style.overflow='hidden';
   const upText=el('span',{id:'exDropText'},'📷 点击上传试卷照片（可选）');up.appendChild(upText);
-  const file=el('input',{type:'file',accept:'image/*',id:'exFile',style:'position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:0;cursor:pointer'});
+  const file=el('input',{type:'file',accept:'image/*',id:'exFile',style:'position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;opacity:0;font-size:100px;cursor:pointer'});
   up.appendChild(file);c.appendChild(up);
   const thumb=el('img','thumb',{id:'exThumb',style:'display:none;margin-top:10px'});
   c.appendChild(thumb);
@@ -665,7 +666,7 @@ function examView(){
   renderExamList(list);
   $('#app').appendChild(c);
 
-  file.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;
+  file.addEventListener('change',async e=>{toast('文件已选择：'+e.target.files.length+' 张');const f=e.target.files[0];if(!f){toast('未获取到文件，请重试');return;}
     const localUrl=URL.createObjectURL(f);examImg=localUrl;thumb.src=localUrl;thumb.style.display='block';
     upText.textContent='⏳ 正在上传照片…';up.style.pointerEvents='none';
     try{
