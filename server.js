@@ -167,6 +167,8 @@ const server = http.createServer(async (req, res) => {
       if (provided !== PASSWORD) return sendJSON(res, 401, { error: 'unauthorized' });
     }
 
+    if (url === '/health') return sendJSON(res, 200, { ok: true });
+
     if (url === '/api/data' && req.method === 'GET') {
       const d = await loadSnapshot();
       return sendJSON(res, 200, {
