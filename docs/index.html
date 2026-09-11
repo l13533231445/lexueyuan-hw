@@ -54,19 +54,18 @@
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
   .hint{font-size:12px;color:var(--muted);background:var(--brand-soft);padding:8px 12px;border-radius:10px;margin:8px 0}
   /* image annotation */
-  .annot-wrap{position:relative;display:inline-block;max-width:100%;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0c0c0c;line-height:0}
-  .annot-wrap img{display:block;max-width:100%;max-height:62vh;width:auto;cursor:crosshair}
+  .annot-wrap{position:relative;display:block;width:100%;max-width:100%;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0c0c0c;line-height:0;touch-action:manipulation}
+  .annot-wrap img{display:block;width:100%;max-width:100%;max-height:62vh;height:auto;cursor:crosshair;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
   .annot-layer{position:absolute;inset:0;pointer-events:none}
   .note{position:absolute;pointer-events:auto;background:rgba(255,255,255,.94);border:2px solid var(--brand);
-    border-radius:8px;font-size:13px;color:var(--ink);min-width:64px;max-width:220px;
-    line-height:1.4;box-shadow:0 3px 10px rgba(0,0,0,.25);transform:translate(-50%,-50%)}
+    border-radius:8px;font-size:13px;color:var(--ink);min-width:90px;max-width:240px;
+    line-height:1.4;box-shadow:0 3px 10px rgba(0,0,0,.25);transform:translate(-50%,-50%);touch-action:none}
   .note .grip{display:block;background:var(--brand);color:#fff;font-size:11px;text-align:center;
-    cursor:move;padding:1px 0;border-radius:6px 6px 0 0;user-select:none}
-  .note .body{padding:5px 8px;min-height:18px;outline:none;color:var(--red);font-weight:600;font-size:13px}
+    cursor:move;padding:1px 0;border-radius:6px 6px 0 0;user-select:none;-webkit-user-select:none;touch-action:none}
+  .note .body{padding:5px 8px;min-height:18px;outline:none;color:var(--red);font-weight:600;font-size:13px;line-height:1.4;word-break:break-all}
   .note .body:empty:before{content:'输入备注…';color:#9aa3af}
-  .note .body:focus{background:#eef6ff}
   .check{position:absolute;pointer-events:auto;color:#22c55e;font-size:30px;font-weight:900;
-    transform:translate(-50%,-50%);cursor:move;text-shadow:0 2px 4px rgba(0,0,0,.5);user-select:none}
+    transform:translate(-50%,-50%);cursor:move;text-shadow:0 2px 4px rgba(0,0,0,.5);user-select:none;-webkit-user-select:none;touch-action:none}
   .check::before{content:"✔"}
   .note .del{position:absolute;top:-9px;right:-9px;width:18px;height:18px;border-radius:50%;background:var(--red);
     color:#fff;border:none;font-size:12px;line-height:18px;cursor:pointer;padding:0;z-index:2}
@@ -376,9 +375,9 @@ function hwView(){
 
   // 工具栏
   const tb=el('div','toolbar',{id:'hwTb',style:'display:none;margin-top:12px'});
-  tb.appendChild(el('button','btn ghost',{onclick:addTextNote},'➕ 添加文字备注'));
-  tb.appendChild(el('button','btn ghost',{onclick:addCheckNote},'✅ 添加完成勾 ✓'));
-  tb.appendChild(el('span','',{html:'<span style="font-size:12px;color:#6b7280;align-self:center">点击按钮即在照片上添加；可拖动定位，点右上角×删除，点框内直接输入文字</span>'}));
+  tb.appendChild(el('button','btn',{onclick:()=>addTextNote()},'📝 添加文字备注'));
+  tb.appendChild(el('button','btn green',{onclick:addCheckNote},'✅ 添加完成勾 ✓'));
+  tb.appendChild(el('span','',{html:'<span style="font-size:12px;color:#6b7280;align-self:center">也可直接点击照片添加备注；拖动⠿移动位置，点×删除</span>'}));
   c.appendChild(tb);
 
   // 自动提取的备注 + 学情 + 补充任务
@@ -412,7 +411,14 @@ function hwView(){
     // 1) 立即本地预览（不依赖上传，秒出图；HEIC 在手机本地也可显示）
     const localUrl=URL.createObjectURL(f);
     hwState.img=localUrl;img.src=localUrl;
-    wrap.style.display='inline-block';tb.style.display='flex';
+    wrap.style.display='block';tb.style.display='flex';
+    img.onclick=(ev)=>{
+      if(ev.target!==img)return;
+      const r=wrap.getBoundingClientRect();
+      const xPct=Math.max(2,Math.min(98,((ev.clientX-r.left)/r.width)*100));
+      const yPct=Math.max(2,Math.min(98,((ev.clientY-r.top)/r.height)*100));
+      addTextNote(xPct,yPct);
+    };
     img.onload=()=>{hwState.imgW=img.naturalWidth;hwState.imgH=img.naturalHeight;};
     upText.textContent='⏳ 正在上传照片…';up.style.pointerEvents='none';
     // 2) 后台转 JPEG 压缩后上传（兼容 iPhone HEIC / 安卓 / 电脑）
@@ -423,7 +429,8 @@ function hwView(){
       if(error)throw error;
       const url=sb.storage.from('site').getPublicUrl(path).data.publicUrl;
       hwState.img=url;img.src=url;
-      upText.textContent='📷 已选照片，可重新点击更换';
+      upText.textContent='📷 已选照片，点击图片任意位置添加文字备注';
+      toast('照片已就绪，点击图片即可添加文字备注，或点下方「添加✓」标记完成');
     }catch(err){
       upText.textContent='⚠️ 上传失败（已用本机预览，可正常保存）';
       toast('上传失败：'+(err&&err.message?err.message:err)+'（照片已本机预览，不影响添加备注和保存）');
@@ -431,33 +438,33 @@ function hwView(){
     finally{up.style.pointerEvents='';}
   });
 }
-function addTextNote(){
+function addTextNote(xPct,yPct){
   if(!hwState.img){toast('请先上传作业照片');return;}
+  const text=prompt('请输入图片备注文字（会自动汇总到下方「图片备注」）','');if(text===null)return;text=text.trim();if(!text){toast('备注文字不能为空');return;}
   const id=uid();const n=hwState.annos.length;
-  const a={id,type:'text',xPct:50+((n*7)%26)-13,yPct:42+((n*9)%26)-13,text:''};
-  hwState.annos.push(a);const node=renderAnno(a);syncHwNote();
-  const body=node?node.querySelector('.body'):null;if(body)body.focus();
-  toast('已在照片上添加文字框，点框直接输入');
+  const a={id,type:'text',xPct:xPct!=null?xPct:(50+((n*7)%26)-13),yPct:yPct!=null?yPct:(42+((n*9)%26)-13),text};
+  hwState.annos.push(a);renderAnno(a);syncHwNote();
+  toast('已添加备注：'+text);
 }
 function addCheckNote(){
   if(!hwState.img){toast('请先上传作业照片');return;}
   const id=uid();const n=hwState.annos.length;
   const a={id,type:'check',xPct:50+((n*7)%26)-13,yPct:42+((n*9)%26)-13,text:''};
   hwState.annos.push(a);renderAnno(a);syncHwNote();
+  toast('已添加完成标记 ✓');
 }
 function renderAnno(a){
   const layer=$('#hwLayer');
   if(a.type==='text'){
     const d=el('div','note');d.style.left=a.xPct+'%';d.style.top=a.yPct+'%';
     d.appendChild(el('span','grip','⠿ 拖动'));
-    const body=el('div','body');body.contentEditable='true';body.textContent=a.text||'';
+    const body=el('div','body');body.textContent=a.text||'';
     d.appendChild(body);
-    const x=el('button','del',{onclick:()=>removeAnno(a.id,d)},'×');d.appendChild(x);
-    body.addEventListener('blur',()=>{a.text=body.textContent.trim();syncHwNote();});
+    const x=el('button','del',{onclick:(ev)=>{ev.stopPropagation();removeAnno(a.id,d);}},'×');d.appendChild(x);
     makeDraggable(d.querySelector('.grip'),a,d);layer.appendChild(d);return d;
   }else{
     const s=el('div','check');s.style.left=a.xPct+'%';s.style.top=a.yPct+'%';
-    const x=el('button','del',{onclick:()=>removeAnno(a.id,s)},'×');s.appendChild(x);
+    const x=el('button','del',{onclick:(ev)=>{ev.stopPropagation();removeAnno(a.id,s);}},'×');s.appendChild(x);
     makeDraggable(s,a,s);layer.appendChild(s);return s;
   }
 }
@@ -478,14 +485,28 @@ function miniAnno(image,annos){
   wrap.appendChild(im);wrap.appendChild(ly);paintAnnos(im,ly,annos);return wrap;
 }
 function makeDraggable(handle,a,node){
-  handle.addEventListener('pointerdown',e=>{if(e.target.classList.contains('del'))return;e.preventDefault();
-    handle.setPointerCapture(e.pointerId);const wrap=$('#hwWrap');const move=ev=>{const r=wrap.getBoundingClientRect();
-      a.xPct=Math.max(2,Math.min(98,((ev.clientX-r.left)/r.width)*100));
-      a.yPct=Math.max(2,Math.min(98,((ev.clientY-r.top)/r.height)*100));
-      node.style.left=a.xPct+'%';node.style.top=a.yPct+'%';};
-    const up=ev=>{handle.releasePointerCapture(e.pointerId);handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',up);};
-    handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',up);
-  });
+  let dragging=false,startX,startY,startPctX,startPctY;
+  function start(e){
+    if(e.target.classList.contains('del'))return;
+    if(e.type==='touchstart')e.preventDefault();
+    const pt=e.touches?e.touches[0]:e;
+    dragging=true;startX=pt.clientX;startY=pt.clientY;startPctX=a.xPct;startPctY=a.yPct;
+    const wrap=$('#hwWrap');const r=wrap.getBoundingClientRect();
+    function move(e2){
+      if(!dragging)return;
+      const ev=e2.touches?e2.touches[0]:e2;
+      const dxPct=((ev.clientX-startX)/r.width)*100;
+      const dyPct=((ev.clientY-startY)/r.height)*100;
+      a.xPct=Math.max(2,Math.min(98,startPctX+dxPct));
+      a.yPct=Math.max(2,Math.min(98,startPctY+dyPct));
+      node.style.left=a.xPct+'%';node.style.top=a.yPct+'%';
+    }
+    function end(){dragging=false;document.removeEventListener('touchmove',move);document.removeEventListener('touchend',end);document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',end);}
+    if(e.type==='touchstart'){document.addEventListener('touchmove',move,{passive:false});document.addEventListener('touchend',end);}
+    else if(e.type==='pointerdown'){try{handle.setPointerCapture(e.pointerId);}catch(_){}handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',end);}
+  }
+  handle.addEventListener('touchstart',start,{passive:false});
+  handle.addEventListener('pointerdown',start);
 }
 function syncHwNote(){
   const txt=hwState.annos.filter(a=>a.type==='text'&&a.text&&a.text!=='备注').map(a=>a.text).join('；');
@@ -536,8 +557,15 @@ function editHw(id){
   render('hw');
   $('#hwStudent').value=h.studentId;$('#hwDate').value=h.date;
   hwState={img:h.image,annos:JSON.parse(JSON.stringify(h.annotations||[])),imgW:0,imgH:0};
-  $('#hwImg').src=h.image;$('#hwWrap').style.display='inline-block';$('#hwTb').style.display='flex';
-  $('#hwDropText').textContent='📷 已选照片，可重新点击更换';
+  $('#hwImg').src=h.image;$('#hwWrap').style.display='block';$('#hwTb').style.display='flex';
+  $('#hwImg').onclick=(ev)=>{
+    if(ev.target!==$('#hwImg'))return;
+    const r=$('#hwWrap').getBoundingClientRect();
+    const xPct=Math.max(2,Math.min(98,((ev.clientX-r.left)/r.width)*100));
+    const yPct=Math.max(2,Math.min(98,((ev.clientY-r.top)/r.height)*100));
+    addTextNote(xPct,yPct);
+  };
+  $('#hwDropText').textContent='📷 已选照片，点击图片任意位置添加文字备注';
   const layer=$('#hwLayer');layer.innerHTML='';hwState.annos.forEach(a=>renderAnno(a));
   $('#hwNote').value=h.note||'';$('#hwTask').value=h.task||'';$('#hwStatus').value=h.status||'';$('#hwNotified').checked=!!h.notified;
   hwEditingId=h.id;const sb=$('#hwSaveBtn');if(sb)sb.textContent='💾 保存修改';
