@@ -342,11 +342,12 @@ function hwView(){
   colD.appendChild(el('input',{type:'date',id:'hwDate',value:todayISO()}));
   row.appendChild(colS);row.appendChild(colD);c.appendChild(row);
 
-  // 上传（用原生 label 触发，手机/桌面都能弹出选择框；图片上传到 Supabase 存储桶，只存链接）
-  const up=el('label','file-drop',{id:'hwDrop',for:'hwFile'},'📷 点击上传作业登记本照片');
-  up.style.marginTop='12px';up.style.cursor='pointer';up.style.display='block';
-  const file=el('input',{type:'file',accept:'image/*',id:'hwFile',style:'position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;left:-9999px'});
-  c.appendChild(up);c.appendChild(file);
+  // 上传（透明文件框直接覆盖在按钮上，iOS Safari 也能弹相册；图片上传到 Supabase 存储桶，只存链接）
+  const up=el('label','file-drop',{id:'hwDrop'});
+  up.style.marginTop='12px';up.style.cursor='pointer';up.style.display='block';up.style.position='relative';up.style.overflow='hidden';
+  const upText=el('span',{id:'hwDropText'},'📷 点击上传作业登记本照片');up.appendChild(upText);
+  const file=el('input',{type:'file',accept:'image/*',id:'hwFile',style:'position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:0;cursor:pointer'});
+  up.appendChild(file);c.appendChild(up);
 
   // 标注区
   const wrap=el('div','annot-wrap',{id:'hwWrap',style:'display:none;margin-top:12px'});
@@ -387,7 +388,7 @@ function hwView(){
 
   file.addEventListener('change',async e=>{
     const f=e.target.files[0];if(!f)return;
-    up.textContent='⏳ 正在上传照片…';up.style.pointerEvents='none';
+    upText.textContent='⏳ 正在上传照片…';up.style.pointerEvents='none';
     try{
       const raw=(f.name.split('.').pop()||'jpg').split('?')[0].toLowerCase();
       const ext=['jpg','jpeg','png','gif','webp','heic','bmp'].includes(raw)?raw:'jpg';
@@ -396,9 +397,9 @@ function hwView(){
       if(error)throw error;
       const url=sb.storage.from('site').getPublicUrl(path).data.publicUrl;
       hwState.img=url;img.src=url;
-      wrap.style.display='inline-block';tb.style.display='flex';up.textContent='📷 已选照片，可重新点击更换';
+      wrap.style.display='inline-block';tb.style.display='flex';upText.textContent='📷 已选照片，可重新点击更换';
       img.onload=()=>{hwState.imgW=img.naturalWidth;hwState.imgH=img.naturalHeight;};
-    }catch(err){up.textContent='📷 点击上传作业登记本照片';toast('上传失败：'+(err&&err.message?err.message:err));}
+    }catch(err){upText.textContent='📷 点击上传作业登记本照片';toast('上传失败：'+(err&&err.message?err.message:err));}
     finally{up.style.pointerEvents='';}
   });
 }
@@ -478,7 +479,7 @@ async function saveHw(){
   // 重置
   hwEditingId=null;hwState={img:null,annos:[],imgW:0,imgH:0};
   $('#hwFile').value='';$('#hwImg').src='';$('#hwWrap').style.display='none';$('#hwTb').style.display='none';
-  $('#hwDrop').textContent='📷 点击上传作业登记本照片';$('#hwNote').value='';$('#hwTask').value='';$('#hwStatus').value='';$('#hwNotified').checked=false;
+  $('#hwDropText').textContent='📷 点击上传作业登记本照片';$('#hwNote').value='';$('#hwTask').value='';$('#hwStatus').value='';$('#hwNotified').checked=false;
   const sb=$('#hwSaveBtn');if(sb)sb.textContent='💾 保存作业记录';
   render('hw');
   // 以图片形式弹窗预览
@@ -508,7 +509,7 @@ function editHw(id){
   $('#hwStudent').value=h.studentId;$('#hwDate').value=h.date;
   hwState={img:h.image,annos:JSON.parse(JSON.stringify(h.annotations||[])),imgW:0,imgH:0};
   $('#hwImg').src=h.image;$('#hwWrap').style.display='inline-block';$('#hwTb').style.display='flex';
-  $('#hwDrop').textContent='📷 已选照片，可重新点击更换';
+  $('#hwDropText').textContent='📷 已选照片，可重新点击更换';
   const layer=$('#hwLayer');layer.innerHTML='';hwState.annos.forEach(a=>renderAnno(a));
   $('#hwNote').value=h.note||'';$('#hwTask').value=h.task||'';$('#hwStatus').value=h.status||'';$('#hwNotified').checked=!!h.notified;
   hwEditingId=h.id;const sb=$('#hwSaveBtn');if(sb)sb.textContent='💾 保存修改';
@@ -613,9 +614,11 @@ function examView(){
   const lv=el('select',{id:'exLevel'});['A','B','C','D'].forEach(x=>lv.appendChild(el('option',{value:x},x)));colLv.appendChild(lv);
   row2.appendChild(colD);row2.appendChild(colSc);row2.appendChild(colLv);c.appendChild(row2);
 
-  const up=el('label','file-drop',{id:'exDrop',for:'exFile'},'📷 点击上传试卷照片（可选）');
-  up.style.marginTop='12px';up.style.cursor='pointer';up.style.display='block';const file=el('input',{type:'file',accept:'image/*',id:'exFile',style:'position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;left:-9999px'});
-  c.appendChild(up);c.appendChild(file);
+  const up=el('label','file-drop',{id:'exDrop'});
+  up.style.marginTop='12px';up.style.cursor='pointer';up.style.display='block';up.style.position='relative';up.style.overflow='hidden';
+  const upText=el('span',{id:'exDropText'},'📷 点击上传试卷照片（可选）');up.appendChild(upText);
+  const file=el('input',{type:'file',accept:'image/*',id:'exFile',style:'position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:0;cursor:pointer'});
+  up.appendChild(file);c.appendChild(up);
   const thumb=el('img','thumb',{id:'exThumb',style:'display:none;margin-top:10px'});
   c.appendChild(thumb);
 
@@ -636,7 +639,7 @@ function examView(){
   $('#app').appendChild(c);
 
   file.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;
-    up.textContent='⏳ 正在上传照片…';up.style.pointerEvents='none';
+    upText.textContent='⏳ 正在上传照片…';up.style.pointerEvents='none';
     try{
       const raw=(f.name.split('.').pop()||'jpg').split('?')[0].toLowerCase();
       const ext=['jpg','jpeg','png','gif','webp','heic','bmp'].includes(raw)?raw:'jpg';
@@ -644,8 +647,8 @@ function examView(){
       const {error}=await sb.storage.from('site').upload(path,f,{contentType:f.type||('image/'+ext),upsert:false,cacheControl:'31536000'});
       if(error)throw error;
       const url=sb.storage.from('site').getPublicUrl(path).data.publicUrl;
-      examImg=url;thumb.src=url;thumb.style.display='block';up.textContent='📷 已选试卷照片，可重新点击更换';
-    }catch(err){up.textContent='📷 点击上传试卷照片（可选）';toast('上传失败：'+(err&&err.message?err.message:err));}
+      examImg=url;thumb.src=url;thumb.style.display='block';upText.textContent='📷 已选试卷照片，可重新点击更换';
+    }catch(err){upText.textContent='📷 点击上传试卷照片（可选）';toast('上传失败：'+(err&&err.message?err.message:err));}
     finally{up.style.pointerEvents='';}
   });
 }
@@ -679,7 +682,7 @@ async function saveExam(){
     analysis:$('#exAnaly').value.trim(),wrong:$('#exWrong').value.trim(),
     weak:$('#exWeak').value.trim(),image:examImg,createdAt:Date.now()});
   await loadAll();toast('试卷记录已保存');
-  examImg=null;$('#exFile').value='';$('#exThumb').style.display='none';$('#exDrop').textContent='📷 点击上传试卷照片（可选）';
+  examImg=null;$('#exFile').value='';$('#exThumb').style.display='none';$('#exDropText').textContent='📷 点击上传试卷照片（可选）';
   ['#exName','#exScore','#exAnaly','#exWrong','#exWeak'].forEach(s=>$(s).value='');render('exam');
 }
 function renderExamList(list){
