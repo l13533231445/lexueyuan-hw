@@ -56,6 +56,8 @@
   /* image annotation */
   .annot-wrap{position:relative;display:block;width:100%;max-width:100%;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0c0c0c;line-height:0;touch-action:manipulation}
   .annot-wrap img{display:block;width:100%;max-width:100%;max-height:62vh;height:auto;cursor:crosshair;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  .scan-bw{filter:grayscale(1) contrast(1.7) brightness(1.04)}
+  .scan-color{filter:contrast(1.3) saturate(1.15)}
   .annot-layer{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none}
   .note{position:absolute;pointer-events:auto;background:rgba(255,255,255,.94);border:2px solid var(--brand);
     border-radius:8px;font-size:13px;color:var(--ink);min-width:90px;max-width:240px;
@@ -441,7 +443,7 @@ async function deleteStudent(id,name){
 function goArchive(id){[...tabs.children].forEach(x=>x.classList.toggle('active',x.dataset.tab==='archive'));render('archive');setTimeout(()=>{$('#arcSel').value=id;arcChange();},0);}
 
 /* ============ 功能1：作业登记 ============ */
-let hwState={img:null,annos:[],imgW:0,imgH:0,localUrl:null,uploadedUrl:null,savedUrl:null};
+let hwState={img:null,annos:[],imgW:0,imgH:0,localUrl:null,uploadedUrl:null,savedUrl:null,scanMode:'none'};
 let hwEditingId=null;
 function hwView(){
   const c=el('div','card',`<h2>✏️ 功能1 · 作业拍照登记 + 图片备注</h2>`);
@@ -566,21 +568,22 @@ function addCheckNote(){
 }
 async function scanHw(mode){
   if(!hwState.localUrl){toast('请先选择照片');return;}
-  toast('正在扫描成文档…');
+  hwState.scanMode=mode;
+  const im=$('#hwImg');im.classList.remove('scan-bw','scan-color');
+  if(mode==='bw')im.classList.add('scan-bw'); else if(mode==='color')im.classList.add('scan-color');
+  toast(mode==='bw'?'已扫描为黑白文档，可直接在图上添加备注':'已增强为彩色扫描版');
+  // 预览只用 CSS 滤镜（不替换 img.src，iOS 绝不回收=不消失）；同时把真正的扫描图（canvas 像素处理）上传云端存档
   try{
     const cv=await makeScanCanvas(hwState.localUrl,mode);
-    const sd=cv.toDataURL('image/jpeg',0.75);          // 本地扫描图（data URL，体积更小手机必显示）
-    $('#hwImg').src=sd;hwState.img=sd;                  // 预览始终用本地图
     const url=await uploadCanvas(cv,'hw/'+uid()+'.jpg');
-    hwState.savedUrl=url||sd;                           // 存储：优先 Supabase，失败用本地
-    toast(mode==='bw'?'已扫描为黑白文档，可直接在图上添加备注':'已增强为彩色扫描版');
-  }catch(e){toast('扫描失败：'+(e&&e.message?e.message:e));}
+    hwState.savedUrl=url||cv.toDataURL('image/jpeg',0.8);
+  }catch(e){ hwState.savedUrl=hwState.uploadedUrl||hwState.localUrl; }
 }
 function restoreHw(){
-  const dis=hwState.localUrl, store=hwState.uploadedUrl||hwState.localUrl;
-  if(!dis){toast('暂无原图可恢复');return;}
-  hwState.img=dis;$('#hwImg').src=dis;                  // 预览用本地图
-  hwState.savedUrl=store;toast('已恢复为原图');
+  if(!hwState.localUrl){toast('暂无原图可恢复');return;}
+  hwState.scanMode='none';
+  const im=$('#hwImg');im.classList.remove('scan-bw','scan-color');
+  hwState.savedUrl=hwState.uploadedUrl||hwState.localUrl;toast('已恢复为原图');
 }
 function renderAnno(a){
   const layer=$('#hwLayer');
@@ -687,7 +690,7 @@ function editHw(id){
   render('hw');
   $('#hwStudent').value=h.studentId;$('#hwDate').value=h.date;
   hwState={img:h.image,annos:JSON.parse(JSON.stringify(h.annotations||[])),imgW:0,imgH:0,localUrl:h.image,uploadedUrl:h.image,savedUrl:h.image};
-  loadImageRobust($('#hwImg'),h.image,$('#hwWrap'));$('#hwWrap').style.display='block';$('#hwTb').style.display='flex';
+  $('#hwImg').classList.remove('scan-bw','scan-color');loadImageRobust($('#hwImg'),h.image,$('#hwWrap'));$('#hwWrap').style.display='block';$('#hwTb').style.display='flex';
   $('#hwImg').onclick=(ev)=>{
     if(ev.target!==$('#hwImg'))return;
     const r=$('#hwWrap').getBoundingClientRect();
@@ -851,20 +854,19 @@ function examView(){
 }
 async function scanEx(mode){
   if(!exLocalUrl){toast('请先选择照片');return;}
-  toast('正在扫描成文档…');
+  const im=$('#exThumb');im.classList.remove('scan-bw','scan-color');
+  if(mode==='bw')im.classList.add('scan-bw'); else if(mode==='color')im.classList.add('scan-color');
+  toast(mode==='bw'?'已扫描为黑白文档':'已增强为彩色扫描版');
   try{
     const cv=await makeScanCanvas(exLocalUrl,mode);
-    const sd=cv.toDataURL('image/jpeg',0.75);
-    examImg=sd;$('#exThumb').src=sd;                 // 预览用本地扫描图（data URL，手机必显示）
     const url=await uploadCanvas(cv,'exams/'+uid()+'.jpg');
-    exSavedUrl=url||sd;                              // 存储：优先 Supabase，失败用本地
-    toast(mode==='bw'?'已扫描为黑白文档':'已增强为彩色扫描版');
-  }catch(e){toast('扫描失败：'+(e&&e.message?e.message:e));}
+    exSavedUrl=url||cv.toDataURL('image/jpeg',0.8);
+  }catch(e){ exSavedUrl=exUploadedUrl||exLocalUrl; }
 }
 function restoreEx(){
-  const dis=exLocalUrl,store=exUploadedUrl||exLocalUrl;
-  if(!dis){toast('暂无原图可恢复');return;}
-  examImg=dis;$('#exThumb').src=dis;exSavedUrl=store;toast('已恢复为原图');
+  if(!exLocalUrl){toast('暂无原图可恢复');return;}
+  const im=$('#exThumb');im.classList.remove('scan-bw','scan-color');
+  exSavedUrl=exUploadedUrl||exLocalUrl;toast('已恢复为原图');
 }
 function levelAuto(score){
   if(score==null||isNaN(score))return '';
