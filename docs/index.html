@@ -347,6 +347,27 @@ function weekLabel(iso){const s=weekStart(iso);const e=new Date(s+'T00:00:00');e
 /* ============ 全局状态 ============ */
 let students=[], homework=[], followups=[], exams=[];
 async function loadAll(){const d=await apiGet();students=d.students||[];homework=d.homework||[];followups=d.followups||[];exams=d.exams||[];if(typeof d.rev==='number')_rev=d.rev;}
+/* 判断某个编辑页是否正在被编辑（有未保存的图片/文字）。同步刷新时若正在编辑则跳过重建，避免预览图被整页重建删掉 */
+function isEditing(tab){
+  if(tab==='hw'){
+    if(hwState&&hwState.img)return true;
+    const a=document.getElementById('hwNote'),b=document.getElementById('hwTask'),c=document.getElementById('hwStatus');
+    if((a&&a.value.trim())||(b&&b.value.trim())||(c&&c.value.trim()))return true;
+    return false;
+  }
+  if(tab==='exam'){
+    if(typeof examImg!=='undefined'&&examImg)return true;
+    const x=document.getElementById('exAnaly'),y=document.getElementById('exWrong'),z=document.getElementById('exWeak');
+    if((x&&x.value.trim())||(y&&y.value.trim())||(z&&z.value.trim()))return true;
+    return false;
+  }
+  if(tab==='wk'){
+    const a=document.getElementById('wkContent'),b=document.getElementById('wkFeedback');
+    if((a&&a.value.trim())||(b&&b.value.trim()))return true;
+    return false;
+  }
+  return false;
+}
 /* 多端轮询同步：每8秒全量拉取，空闲时（未在输入框打字）自动刷新当前页 */
 function startSync(){
   if(_syncTimer)return;
@@ -359,7 +380,8 @@ function startSync(){
       const d=await apiGet();
       students=d.students||[];homework=d.homework||[];followups=d.followups||[];exams=d.exams||[];
       const cur=[...tabs.children].find(x=>x.classList.contains('active'));
-      if(cur)render(cur.dataset.tab);
+      // 关键修复：正在编辑（已选图/有未保存内容）时绝不重建表单，否则预览图与标注会被整页重建删掉
+      if(cur&&!isEditing(cur.dataset.tab))render(cur.dataset.tab);
     }catch(e){}finally{_syncing=false;}
   },8000);
 }
