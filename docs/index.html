@@ -521,24 +521,25 @@ function hwView(){
       addTextNote(xPct,yPct);
     };
     img.onload=()=>{hwState.imgW=img.naturalWidth;hwState.imgH=img.naturalHeight;};
-    img.onerror=()=>{ if(hwState.localUrl && $('#hwImg').src!==hwState.localUrl){ $('#hwImg').src=hwState.localUrl; } else { const box=showImgError(wrap);if(box)box.textContent='⚠️ 本地预览生成失败，请换一张照片重试。'; } };
+    img.onerror=()=>{ const box=showImgError(wrap); if(box)box.textContent='⚠️ 照片读取失败，请换一张或退出无痕模式后重试。'; };
     upText.textContent='⏳ 正在处理照片…';up.style.pointerEvents='none';
-    // 2) 本地预览：转成压缩 JPEG data URL（同域 data:，iOS 必定渲染，绝不被"阻止跨站跟踪"拦截）；HEIC/超大图都兼容。预览只用本地图，绝不依赖跨站 Supabase 链接
-    let localUrl=null;
+    // 2) 本地预览：用原生 blob: URL（浏览器原生、内存极小、iOS 绝不被回收=不消失；且不涉及 canvas，规避无痕模式 canvas 报错）
+    if(hwState.localUrl&&hwState.localUrl.indexOf('blob:')===0)URL.revokeObjectURL(hwState.localUrl);
+    const objUrl=URL.createObjectURL(f);
+    hwState.localUrl=objUrl;hwState.img=objUrl;hwState.scanMode='none';
+    img.classList.remove('scan-bw','scan-color');img.src=objUrl;
+    // 3) 后台上传到 Supabase：优先压缩 JPEG；无痕模式 canvas 失败则直传原文件，保证保存后云端有图
+    hwState.savedUrl=null;hwState.uploadedUrl=null;
     try{
-      localUrl=await fileToJpegDataUrl(f,720);hwState.localUrl=localUrl;hwState.img=localUrl;img.src=localUrl;
-    }catch(_){ try{ const du2=await readAsDataURL(f);hwState.localUrl=du2;hwState.img=du2;img.src=du2; }catch(__){} }
-    // 3) 后台上传原图到 Supabase（仅作为存储，不直接用于手机预览）。默认存储原图链接，扫描/还原会覆盖
-    hwState.savedUrl=null;
-    try{
-      const blob=await fileToJpegBlob(f,1280);
+      let body,btype='image/jpeg';
+      try{ body=await fileToJpegBlob(f,1280); }catch(_){ body=f;btype=f.type||'image/jpeg'; }
       const path='hw/'+uid()+'.jpg';
-      const {error}=await sb.storage.from('site').upload(path,blob,{contentType:'image/jpeg',upsert:false,cacheControl:'31536000'});
+      const {error}=await sb.storage.from('site').upload(path,body,{contentType:btype,upsert:false,cacheControl:'31536000'});
       if(error)throw error;
       const url=sb.storage.from('site').getPublicUrl(path).data.publicUrl;
       hwState.uploadedUrl=url;hwState.savedUrl=url;
     }catch(err){
-      toast('原图上传失败：'+(err&&err.message?err.message:err)+'（已用本机预览，不影响扫描与保存）');
+      toast('图片上传失败：'+(err&&err.message?err.message:err)+'（本机预览正常，可先保存；联网后重传可多设备查看）');
     }
     finally{up.style.pointerEvents='';}
     // 4) 自动扫描成黑白文档（用户要的就是"扫描版"），扫描图也上传到 Supabase
@@ -567,16 +568,18 @@ function addCheckNote(){
   toast('已添加完成标记 ✓');
 }
 async function scanHw(mode){
+  const im=$('#hwImg');
+  im.classList.remove('scan-bw','scan-color');
+  if(mode==='bw')im.classList.add('scan-bw'); else if(mode==='color')im.classList.add('scan-color');
   if(!hwState.localUrl){toast('请先选择照片');return;}
   hwState.scanMode=mode;
-  const im=$('#hwImg');im.classList.remove('scan-bw','scan-color');
-  if(mode==='bw')im.classList.add('scan-bw'); else if(mode==='color')im.classList.add('scan-color');
   toast(mode==='bw'?'已扫描为黑白文档，可直接在图上添加备注':'已增强为彩色扫描版');
   // 预览只用 CSS 滤镜（不替换 img.src，iOS 绝不回收=不消失）；同时把真正的扫描图（canvas 像素处理）上传云端存档
   try{
     const cv=await makeScanCanvas(hwState.localUrl,mode);
     const url=await uploadCanvas(cv,'hw/'+uid()+'.jpg');
-    hwState.savedUrl=url||cv.toDataURL('image/jpeg',0.8);
+    if(url){ hwState.savedUrl=url; hwState.scanMode='none'; }       // 已存为真正的扫描图，显示无需再滤镜
+    else { hwState.savedUrl=hwState.uploadedUrl||hwState.localUrl; } // 上传失败：存原图，靠 CSS 滤镜呈现扫描效果
   }catch(e){ hwState.savedUrl=hwState.uploadedUrl||hwState.localUrl; }
 }
 function restoreHw(){
@@ -612,9 +615,10 @@ function paintAnnos(imgEl,layerEl,annos){
     }
   });
 }
-function miniAnno(image,annos){
+function miniAnno(image,annos,scanMode){
   const wrap=el('div','annot-mini');const im=el('img');const ly=el('div','annot-layer ro');
   wrap.appendChild(im);wrap.appendChild(ly);paintAnnos(im,ly,annos);
+  if(scanMode==='bw')im.classList.add('scan-bw'); else if(scanMode==='color')im.classList.add('scan-color');
   loadImageRobust(im,image,wrap);return wrap;
 }
 function makeDraggable(handle,a,node){
@@ -653,13 +657,16 @@ async function saveHw(){
   if(!note&&!status&&!task){toast('请填写图片备注 / 补充任务 / 当晚学习情况');return;}
   const st=students.find(s=>s.id===sid);
   const rec={id:hwEditingId||uid(),studentId:sid,studentName:st.name,className:st.className,
-    date,image:hwState.savedUrl||hwState.img,annotations:JSON.parse(JSON.stringify(hwState.annos)),
+    date,image:hwState.savedUrl||hwState.uploadedUrl||hwState.localUrl,scanMode:hwState.scanMode||'none',
+    annotations:JSON.parse(JSON.stringify(hwState.annos)),
     note,status,task,notified,createdAt:hwEditingId?(homework.find(x=>x.id===hwEditingId)||{}).createdAt||Date.now():Date.now()};
   const isEdit=!!hwEditingId;
   await putRec('homework',rec);
   await loadAll();
   // 重置
-  hwEditingId=null;hwState={img:null,annos:[],imgW:0,imgH:0,localUrl:null,uploadedUrl:null,savedUrl:null};
+  hwEditingId=null;
+  if(hwState.localUrl&&hwState.localUrl.indexOf('blob:')===0)URL.revokeObjectURL(hwState.localUrl);
+  hwState={img:null,annos:[],imgW:0,imgH:0,localUrl:null,uploadedUrl:null,savedUrl:null,scanMode:'none'};
   $('#hwFile').value='';$('#hwImg').src='';$('#hwWrap').style.display='none';$('#hwTb').style.display='none';
   $('#hwDropText').textContent='📷 点击上传作业登记本照片';$('#hwNote').value='';$('#hwTask').value='';$('#hwStatus').value='';$('#hwNotified').checked=false;
   const sb=$('#hwSaveBtn');if(sb)sb.textContent='💾 保存作业记录';
@@ -679,7 +686,7 @@ function renderHwList(list){
     if(h.task)b.appendChild(el('div','kv',{html:`<b>补充任务</b>${escapeHtml(h.task)}`}));
     if(h.notified!==undefined&&h.notified!==null)b.appendChild(el('div','kv',{html:`<b>已通知接送</b>${h.notified?'是':'否'}`}));
     if(h.status)b.appendChild(el('div','kv',{html:`<b>当晚学情</b>${escapeHtml(h.status)}`}));
-    if(h.image)b.appendChild(miniAnno(h.image,h.annotations));
+    if(h.image)b.appendChild(miniAnno(h.image,h.annotations,h.scanMode));
     const del=el('button','del-x',{onclick:async()=>{if(confirm('删除这条作业记录？')){await delRec('homework',h.id);await loadAll();render('hw');}}},'删除');
     const edt=el('button','del-x',{onclick:()=>editHw(h.id),style:'background:var(--brand-soft);color:var(--brand);margin-right:6px'},'修改');
     r.appendChild(edt);r.appendChild(del);r.appendChild(b);list.appendChild(r);
@@ -689,8 +696,10 @@ function editHw(id){
   const h=homework.find(x=>x.id===id);if(!h)return;
   render('hw');
   $('#hwStudent').value=h.studentId;$('#hwDate').value=h.date;
-  hwState={img:h.image,annos:JSON.parse(JSON.stringify(h.annotations||[])),imgW:0,imgH:0,localUrl:h.image,uploadedUrl:h.image,savedUrl:h.image};
-  $('#hwImg').classList.remove('scan-bw','scan-color');loadImageRobust($('#hwImg'),h.image,$('#hwWrap'));$('#hwWrap').style.display='block';$('#hwTb').style.display='flex';
+  hwState={img:h.image,annos:JSON.parse(JSON.stringify(h.annotations||[])),imgW:0,imgH:0,localUrl:h.image,uploadedUrl:h.image,savedUrl:h.image,scanMode:h.scanMode||'none'};
+  $('#hwImg').classList.remove('scan-bw','scan-color');
+  if(h.scanMode==='bw')$('#hwImg').classList.add('scan-bw'); else if(h.scanMode==='color')$('#hwImg').classList.add('scan-color');
+  loadImageRobust($('#hwImg'),h.image,$('#hwWrap'));$('#hwWrap').style.display='block';$('#hwTb').style.display='flex';
   $('#hwImg').onclick=(ev)=>{
     if(ev.target!==$('#hwImg'))return;
     const r=$('#hwWrap').getBoundingClientRect();
@@ -783,7 +792,7 @@ function renderWkList(list){
 }
 
 /* ============ 功能3：试卷分析 ============ */
-let examImg=null,exLocalUrl=null,exUploadedUrl=null,exSavedUrl=null;
+let examImg=null,exLocalUrl=null,exUploadedUrl=null,exSavedUrl=null,exScanMode='none';
 function examView(){
   const c=el('div','card',`<h2>📝 功能3 · 试卷上传 + 分析 + 成绩等级</h2>`);
   c.appendChild(el('div','hint','上传试卷照片，录入名称/考试日期/分数，选择等级 A/B/C/D，系统自动生成简单分析，再补充错题要点与薄弱知识点，归档到学生档案。'));
@@ -833,39 +842,45 @@ function examView(){
   $('#app').appendChild(c);
 
   file.addEventListener('change',async e=>{toast('文件已选择：'+e.target.files.length+' 张');const f=e.target.files[0];if(!f){toast('未获取到文件，请重试');return;}
-    thumb.onerror=()=>{ if(exLocalUrl && thumb.src!==exLocalUrl){ thumb.src=exLocalUrl; } else { const box=showImgError(thumb);if(box)box.textContent='⚠️ 本地预览生成失败，请换一张照片重试。'; } };
+    thumb.onerror=()=>{ const box=showImgError(thumb);if(box)box.textContent='⚠️ 照片读取失败，请换一张或退出无痕模式后重试。'; };
     upText.textContent='⏳ 正在处理照片…';up.style.pointerEvents='none';
     exTb.style.display='flex';
-    let localUrl=null;
-    try{ localUrl=await fileToJpegDataUrl(f,720);exLocalUrl=localUrl;examImg=localUrl;thumb.src=localUrl;thumb.style.display='block'; }
-    catch(_){ try{ const du2=await readAsDataURL(f);exLocalUrl=du2;examImg=du2;thumb.src=du2;thumb.style.display='block'; }catch(__){} }
-    exSavedUrl=null;
+    // 本地预览：原生 blob: URL（极小内存、iOS 绝不被回收=不消失、不涉及 canvas 规避无痕模式报错）
+    if(exLocalUrl&&exLocalUrl.indexOf('blob:')===0)URL.revokeObjectURL(exLocalUrl);
+    const objUrl=URL.createObjectURL(f);
+    exLocalUrl=objUrl;examImg=objUrl;exScanMode='none';
+    thumb.classList.remove('scan-bw','scan-color');thumb.src=objUrl;thumb.style.display='block';
+    exSavedUrl=null;exUploadedUrl=null;
     try{
-      const blob=await fileToJpegBlob(f,1280);
+      let body,btype='image/jpeg';
+      try{ body=await fileToJpegBlob(f,1280); }catch(_){ body=f;btype=f.type||'image/jpeg'; }
       const path='exams/'+uid()+'.jpg';
-      const {error}=await sb.storage.from('site').upload(path,blob,{contentType:'image/jpeg',upsert:false,cacheControl:'31536000'});
+      const {error}=await sb.storage.from('site').upload(path,body,{contentType:btype,upsert:false,cacheControl:'31536000'});
       if(error)throw error;
       const url=sb.storage.from('site').getPublicUrl(path).data.publicUrl;
       exUploadedUrl=url;exSavedUrl=url;upText.textContent='📄 已扫描为文档，可补充错题要点';
-    }catch(err){upText.textContent='⚠️ 上传失败（已用本机预览）';toast('上传失败：'+(err&&err.message?err.message:err));}
+    }catch(err){upText.textContent='⚠️ 上传失败（本机预览正常，联网后重传可多设备查看）';toast('上传失败：'+(err&&err.message?err.message:err));}
     finally{up.style.pointerEvents='';}
     try{ await scanEx('bw'); }catch(_){ upText.textContent='📷 已选试卷照片，可重新点击更换'; }
   });
 }
 async function scanEx(mode){
-  if(!exLocalUrl){toast('请先选择照片');return;}
   const im=$('#exThumb');im.classList.remove('scan-bw','scan-color');
   if(mode==='bw')im.classList.add('scan-bw'); else if(mode==='color')im.classList.add('scan-color');
+  if(!exLocalUrl){toast('请先选择照片');return;}
+  exScanMode=mode;
   toast(mode==='bw'?'已扫描为黑白文档':'已增强为彩色扫描版');
   try{
     const cv=await makeScanCanvas(exLocalUrl,mode);
     const url=await uploadCanvas(cv,'exams/'+uid()+'.jpg');
-    exSavedUrl=url||cv.toDataURL('image/jpeg',0.8);
+    if(url){ exSavedUrl=url; exScanMode='none'; }
+    else { exSavedUrl=exUploadedUrl||exLocalUrl; }
   }catch(e){ exSavedUrl=exUploadedUrl||exLocalUrl; }
 }
 function restoreEx(){
   if(!exLocalUrl){toast('暂无原图可恢复');return;}
   const im=$('#exThumb');im.classList.remove('scan-bw','scan-color');
+  exScanMode='none';
   exSavedUrl=exUploadedUrl||exLocalUrl;toast('已恢复为原图');
 }
 function levelAuto(score){
@@ -895,10 +910,11 @@ async function saveExam(){
   const lv=$('#exLevel').value||levelAuto(parseFloat(score))||'';
   await putRec('exams',{id:uid(),studentId:sid,studentName:st.name,className:st.className,
     name,examDate:$('#exDate').value,score:score===''?null:parseFloat(score),level:lv,
-    analysis:$('#exAnaly').value.trim(),wrong:$('#exWrong').value.trim(),
-    weak:$('#exWeak').value.trim(),image:exSavedUrl||examImg,createdAt:Date.now()});
+    analysis:$('#exAnaly').value.trim(),wrong:$('#exWeak').value.trim(),
+    weak:$('#exWeak').value.trim(),image:exSavedUrl||exUploadedUrl||exLocalUrl,scanMode:exScanMode||'none',createdAt:Date.now()});
   await loadAll();toast('试卷记录已保存');
-  examImg=null;exLocalUrl=null;exUploadedUrl=null;exSavedUrl=null;$('#exFile').value='';$('#exThumb').style.display='none';$('#exTb').style.display='none';$('#exDropText').textContent='📷 点击上传试卷照片（可选）';
+  if(exLocalUrl&&exLocalUrl.indexOf('blob:')===0)URL.revokeObjectURL(exLocalUrl);
+  examImg=null;exLocalUrl=null;exUploadedUrl=null;exSavedUrl=null;exScanMode='none';$('#exFile').value='';$('#exThumb').style.display='none';$('#exTb').style.display='none';$('#exDropText').textContent='📷 点击上传试卷照片（可选）';
   ['#exName','#exScore','#exAnaly','#exWrong','#exWeak'].forEach(s=>$(s).value='');render('exam');
 }
 function renderExamList(list){
@@ -913,7 +929,7 @@ function renderExamList(list){
     if(x.analysis)b.appendChild(el('div','kv',{html:`<b>分析</b>${escapeHtml(x.analysis).replace(/\n/g,'<br>')}`}));
     if(x.wrong)b.appendChild(el('div','kv',{html:`<b>错题要点</b>${escapeHtml(x.wrong)}`}));
     if(x.weak)b.appendChild(el('div','kv',{html:`<b>薄弱点</b>${escapeHtml(x.weak)}`}));
-    if(x.image)b.appendChild(el('img','thumb',{src:x.image,onclick:()=>previewImg(x.image)}));
+    if(x.image){const ti=el('img','thumb',{onclick:()=>previewImg(x.image)});if(x.scanMode==='bw')ti.classList.add('scan-bw'); else if(x.scanMode==='color')ti.classList.add('scan-color');loadImageRobust(ti,x.image,b);b.appendChild(ti);}
     const del=el('button','del-x',{onclick:async()=>{if(confirm('删除这条试卷记录？')){await delRec('exams',x.id);await loadAll();render('exam');}}},'删除');
     r.appendChild(del);r.appendChild(b);list.appendChild(r);
   });
@@ -958,7 +974,7 @@ async function arcChange(){
     if(h.task)b.appendChild(el('div','kv',{html:`<b>补充任务</b>${escapeHtml(h.task)}`}));
     if(h.notified!==undefined&&h.notified!==null)b.appendChild(el('div','kv',{html:`<b>已通知接送</b>${h.notified?'是':'否'}`}));
     if(h.status)b.appendChild(el('div','kv',{html:`<b>当晚学情</b>${escapeHtml(h.status)}`}));
-    if(h.image)b.appendChild(miniAnno(h.image,h.annotations));
+    if(h.image)b.appendChild(miniAnno(h.image,h.annotations,h.scanMode));
     const edt=el('button','del-x',{onclick:()=>editHw(h.id),style:'background:var(--brand-soft);color:var(--brand);margin-right:6px'},'修改');
     const del=el('button','del-x',{onclick:async()=>{if(confirm('删除这条作业记录？')){await delRec('homework',h.id);await loadAll();render('archive');}}},'删除');
     r.appendChild(edt);r.appendChild(del);r.appendChild(b);box.appendChild(r);});
@@ -981,7 +997,7 @@ async function arcChange(){
     const b=el('div','body');if(x.analysis)b.appendChild(el('div','kv',{html:`<b>分析</b>${escapeHtml(x.analysis).replace(/\n/g,'<br>')}`}));
     if(x.wrong)b.appendChild(el('div','kv',{html:`<b>错题</b>${escapeHtml(x.wrong)}`}));
     if(x.weak)b.appendChild(el('div','kv',{html:`<b>薄弱</b>${escapeHtml(x.weak)}`}));
-    if(x.image)b.appendChild(el('img','thumb',{src:x.image,onclick:()=>previewImg(x.image)}));
+    if(x.image){const ti=el('img','thumb',{onclick:()=>previewImg(x.image)});if(x.scanMode==='bw')ti.classList.add('scan-bw'); else if(x.scanMode==='color')ti.classList.add('scan-color');loadImageRobust(ti,x.image,b);b.appendChild(ti);}
     r.appendChild(b);box.appendChild(r);});
 }
 function sectTitle(t){const d=el('div','sect');d.appendChild(el('div','ttl',t));return d;}
@@ -990,7 +1006,8 @@ function sectTitle(t){const d=el('div','sect');d.appendChild(el('div','ttl',t));
 function previewImg(src){
   const bg=$('#modalBg');const box=$('#modalBox');
   box.innerHTML='';box.style.maxWidth='90vw';
-  const img=el('img',{src,style:'max-width:100%;max-height:80vh;border-radius:10px'});
+  const img=el('img',{style:'max-width:100%;max-height:80vh;border-radius:10px'});
+  loadImageRobust(img,src,box);
   const close=el('button','btn warn',{onclick:()=>bg.classList.remove('show'),style:'margin-top:10px;width:100%'},'关闭');
   box.appendChild(img);box.appendChild(close);bg.classList.add('show');
 }
@@ -1065,13 +1082,18 @@ function showHwImagePopup(rec){
       ctx.fillStyle='#000';ctx.font='14px sans-serif';y=drawWrapped(ctx,s.text,pad,y,maxW,22);y+=14;
     });
     // 替换弹窗内容
-    const url=cv.toDataURL('image/png');
+    let url=null;try{ url=cv.toDataURL('image/png'); }catch(_){}
     box.innerHTML='';box.style.maxWidth='92vw';
     box.appendChild(el('h3',{},'📋 作业记录（图片预览）'));
-    box.appendChild(el('img',{src:url,style:'max-width:100%;max-height:76vh;border-radius:10px;border:1px solid var(--line)'}));
-    const dl=el('a',{href:url,download:`作业记录_${rec.studentName}_${rec.date}.png`,class:'btn green',
-      style:'display:block;text-align:center;text-decoration:none;margin-top:12px;padding:10px;border-radius:10px'},'⬇ 下载图片');
-    box.appendChild(dl);
+    if(url){
+      box.appendChild(el('img',{src:url,style:'max-width:100%;max-height:76vh;border-radius:10px;border:1px solid var(--line)'}));
+      const dl=el('a',{href:url,download:`作业记录_${rec.studentName}_${rec.date}.png`,class:'btn green',
+        style:'display:block;text-align:center;text-decoration:none;margin-top:12px;padding:10px;border-radius:10px'},'⬇ 下载图片');
+      box.appendChild(dl);
+    }else{
+      const fb=el('img',{style:'max-width:100%;max-height:76vh;border-radius:10px;border:1px solid var(--line)'});loadImageRobust(fb,rec.image,box);box.appendChild(fb);
+      box.appendChild(el('div',{style:'font-size:12px;color:#6b7280;margin-top:8px'},'（无痕模式下无法生成合成图，已显示原图）'));
+    }
     box.appendChild(el('button','btn warn',{onclick:()=>bg.classList.remove('show'),style:'margin-top:10px;width:100%'},'关闭'));
   };
   loadImageRobust(img,rec.image,box);
