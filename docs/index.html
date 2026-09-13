@@ -59,6 +59,11 @@
   .scan-bw{filter:grayscale(1) contrast(1.7) brightness(1.04)}
   .scan-color{filter:contrast(1.3) saturate(1.15)}
   .annot-layer{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none}
+  /* 画笔圈重点：覆盖在图片上的透明画布，仅在开启画笔模式时接收事件 */
+  .annot-draw{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;touch-action:none;z-index:5}
+  .annot-draw.active{pointer-events:auto;cursor:crosshair}
+  .brush-on{background:var(--red)!important;color:#fff!important}
+  .brush-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
   .note{position:absolute;pointer-events:auto;background:rgba(255,255,255,.94);border:2px solid var(--brand);
     border-radius:8px;font-size:13px;color:var(--ink);min-width:90px;max-width:240px;
     line-height:1.4;box-shadow:0 3px 10px rgba(0,0,0,.25);transform:translate(-50%,-50%);touch-action:none}
@@ -465,8 +470,10 @@ async function deleteStudent(id,name){
 function goArchive(id){[...tabs.children].forEach(x=>x.classList.toggle('active',x.dataset.tab==='archive'));render('archive');setTimeout(()=>{$('#arcSel').value=id;arcChange();},0);}
 
 /* ============ 功能1：作业登记 ============ */
-let hwState={img:null,annos:[],imgW:0,imgH:0,localUrl:null,uploadedUrl:null,savedUrl:null,scanMode:'none'};
+let hwState={img:null,annos:[],imgW:0,imgH:0,localUrl:null,uploadedUrl:null,savedUrl:null,scanMode:'none',drawStrokes:[]};
 let hwEditingId=null;
+/* 画笔圈重点状态 */
+let hwDrawMode=false,hwColor='#ef4444',hwBrushSize=3;
 function hwView(){
   const c=el('div','card',`<h2>✏️ 功能1 · 作业拍照登记 + 图片备注</h2>`);
   c.appendChild(el('div','hint','上传作业登记本照片 → 在照片上点「添加文字」写备注、点「添加✓」标记完成 → 备注会自动提取到下方「图片备注」，并与学生当日数据绑定。'));
@@ -492,8 +499,8 @@ function hwView(){
 
   // 标注区
   const wrap=el('div','annot-wrap',{id:'hwWrap',style:'display:none;margin-top:12px'});
-  const img=el('img',{id:'hwImg'});const layer=el('div','annot-layer',{id:'hwLayer'});
-  wrap.appendChild(img);wrap.appendChild(layer);c.appendChild(wrap);
+  const img=el('img',{id:'hwImg'});const layer=el('div','annot-layer',{id:'hwLayer'});const draw=el('canvas','annot-draw',{id:'hwDraw'});
+  wrap.appendChild(img);wrap.appendChild(layer);wrap.appendChild(draw);c.appendChild(wrap);
 
   // 工具栏
   const tb=el('div','toolbar',{id:'hwTb',style:'display:none;margin-top:12px'});
@@ -502,7 +509,15 @@ function hwView(){
   tb.appendChild(el('button','btn ghost',{onclick:()=>scanHw('bw')},'📄 扫描成黑白文档'));
   tb.appendChild(el('button','btn ghost',{onclick:()=>scanHw('color')},'🌈 彩色增强'));
   tb.appendChild(el('button','btn ghost',{onclick:restoreHw},'🖼 恢复原图'));
-  tb.appendChild(el('span','',{html:'<span style="font-size:12px;color:#6b7280;align-self:center">选完照片会自动扫描成文档；也可直接点照片加备注；拖动⠿移动，点×删除</span>'}));
+  // 画笔圈重点
+  tb.appendChild(el('button','btn ghost',{id:'hwBrushBtn',onclick:toggleHwBrush},'🖌 圈重点'));
+  const colInput=el('input',{type:'color',id:'hwColor',value:'#ef4444',title:'画笔颜色',style:'width:36px;height:36px;border:none;background:none;cursor:pointer;padding:0'});
+  colInput.addEventListener('input',e=>{hwColor=e.target.value;});tb.appendChild(colInput);
+  const sizeInput=el('input',{type:'range',id:'hwSize',min:'1',max:'12',value:'3',title:'画笔粗细',style:'width:90px'});
+  sizeInput.addEventListener('input',e=>{hwBrushSize=parseFloat(e.target.value);});tb.appendChild(sizeInput);
+  tb.appendChild(el('button','btn ghost',{onclick:undoHwStroke},'↶ 撤销'));
+  tb.appendChild(el('button','btn ghost',{onclick:clearHwStrokes},'🗑 清除笔迹'));
+  tb.appendChild(el('span','',{html:'<span style="font-size:12px;color:#6b7280;align-self:center">选完照片会自动扫描成彩色增强版；点照片加文字/✓，或开「🖌圈重点」手指圈画；拖动⠿移动，点×删除</span>'}));
   c.appendChild(tb);
 
   // 自动提取的备注 + 学情 + 补充任务
@@ -529,6 +544,7 @@ function hwView(){
   renderHwList(list);
 
   $('#app').appendChild(c);
+  hwDrawHandlerInit();
 
   file.addEventListener('change',async e=>{
     toast('文件已选择：'+e.target.files.length+' 张');
@@ -542,7 +558,7 @@ function hwView(){
       const yPct=Math.max(2,Math.min(98,((ev.clientY-r.top)/r.height)*100));
       addTextNote(xPct,yPct);
     };
-    img.onload=()=>{hwState.imgW=img.naturalWidth;hwState.imgH=img.naturalHeight;};
+    img.onload=()=>{hwState.imgW=img.naturalWidth;hwState.imgH=img.naturalHeight;if(hwState.drawStrokes&&hwState.drawStrokes.length){sizeHwDraw();redrawHwDraw();}};
     img.onerror=()=>{ const box=showImgError(wrap); if(box)box.textContent='⚠️ 照片读取失败，请换一张或退出无痕模式后重试。'; };
     upText.textContent='⏳ 正在处理照片…';up.style.pointerEvents='none';
     // 2) 本地预览：用原生 blob: URL（浏览器原生、内存极小、iOS 绝不被回收=不消失；且不涉及 canvas，规避无痕模式 canvas 报错）
@@ -564,10 +580,10 @@ function hwView(){
       toast('图片上传失败：'+(err&&err.message?err.message:err)+'（本机预览正常，可先保存；联网后重传可多设备查看）');
     }
     finally{up.style.pointerEvents='';}
-    // 4) 自动扫描成黑白文档（用户要的就是"扫描版"），扫描图也上传到 Supabase
+    // 4) 自动扫描成彩色增强版（用户要的就是"扫描版"，默认彩色更清晰），扫描图也上传到 Supabase
     try{
-      await scanHw('bw');
-      upText.textContent='📄 已扫描为文档，可直接在图上添加备注';
+      await scanHw('color');
+      upText.textContent='🌈 已扫描为彩色增强版，可直接在图上添加备注或圈重点';
     }catch(err){
       upText.textContent='📷 已选照片，点击图片任意位置添加文字备注';
       toast('自动扫描失败，已用原图（你可点「扫描成黑白文档」重试）');
@@ -610,6 +626,78 @@ function restoreHw(){
   const im=$('#hwImg');im.classList.remove('scan-bw','scan-color');
   hwState.savedUrl=hwState.uploadedUrl||hwState.localUrl;toast('已恢复为原图');
 }
+/* ============ 画笔圈重点 ============ */
+function toggleHwBrush(){
+  if(!hwState.img){toast('请先上传作业照片');return;}
+  hwDrawMode=!hwDrawMode;
+  const cv=$('#hwDraw'),btn=$('#hwBrushBtn');
+  if(hwDrawMode){cv.classList.add('active');btn.classList.add('brush-on');toast('✏️ 画笔已开启：在图片上手指滑动即可圈重点（红圈），关闭后不影响加备注');}
+  else{cv.classList.remove('active');btn.classList.remove('brush-on');toast('画笔已关闭');}
+}
+function undoHwStroke(){ if(hwState.drawStrokes&&hwState.drawStrokes.length){hwState.drawStrokes.pop();redrawHwDraw();} }
+function clearHwStrokes(){ if(!hwState.drawStrokes||!hwState.drawStrokes.length){toast('还没有圈画内容');return;} if(confirm('清除所有圈画笔迹？')){hwState.drawStrokes=[];redrawHwDraw();toast('已清除笔迹');} }
+/* 把画布内部分辨率设为当前显示尺寸（含 dpr），保证清晰且不随屏幕缩放错位 */
+function sizeHwDraw(){
+  const cv=$('#hwDraw'),img=$('#hwImg');if(!cv||!img)return;
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  const w=Math.max(1,Math.round(img.clientWidth*dpr)),h=Math.max(1,Math.round(img.clientHeight*dpr));
+  if(cv.width!==w)cv.width=w; if(cv.height!==h)cv.height=h;
+}
+function redrawHwDraw(){
+  const cv=$('#hwDraw');if(!cv)return;
+  sizeHwDraw();
+  const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);
+  (hwState.drawStrokes||[]).forEach(s=>drawStroke(ctx,cv.width,cv.height,s));
+}
+function drawStroke(ctx,W,H,s){
+  if(!s.pts||s.pts.length===0)return;
+  ctx.strokeStyle=s.color||'#ef4444';
+  ctx.lineWidth=Math.max(1,(s.widthPct||3)/100*W);
+  ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.beginPath();
+  s.pts.forEach((p,i)=>{const x=p.xPct/100*W,y=p.yPct/100*H; if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);});
+  if(s.pts.length===1){const x=s.pts[0].xPct/100*W,y=s.pts[0].yPct/100*H;ctx.arc(x,y,ctx.lineWidth/2,0,Math.PI*2);ctx.fillStyle=s.color||'#ef4444';ctx.fill();}
+  ctx.stroke();
+}
+function hwDrawHandlerInit(){
+  const cv=$('#hwDraw');if(!cv)return;
+  let drawing=false,cur=null;
+  const pos=e=>{const r=cv.getBoundingClientRect();return {xPct:(e.clientX-r.left)/r.width*100,yPct:(e.clientY-r.top)/r.height*100};};
+  cv.addEventListener('pointerdown',e=>{
+    if(!hwDrawMode)return; e.preventDefault();
+    drawing=true;cur={color:hwColor,widthPct:hwBrushSize,pts:[pos(e)]};
+    try{cv.setPointerCapture(e.pointerId);}catch(_){}
+    const ctx=cv.getContext('2d');sizeHwDraw();drawStroke(ctx,cv.width,cv.height,cur);
+  });
+  cv.addEventListener('pointermove',e=>{
+    if(!drawing||!cur)return; e.preventDefault();
+    cur.pts.push(pos(e));
+    const ctx=cv.getContext('2d');drawStroke(ctx,cv.width,cv.height,cur);
+  });
+  const end=()=>{ if(!drawing)return; drawing=false; if(cur&&cur.pts.length)hwState.drawStrokes.push(JSON.parse(JSON.stringify(cur))); cur=null; redrawHwDraw(); };
+  cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
+}
+/* 把笔迹合成到最终保存的图片上（让三端都能看到圈画）；失败则放弃笔迹、保留原图 */
+async function composeHwDraw(){
+  if(!hwState.drawStrokes||!hwState.drawStrokes.length)return;
+  const src=hwState.savedUrl||hwState.uploadedUrl||hwState.localUrl;
+  if(!src)return;
+  // 跨站 Supabase 图片直接 drawImage 会污染 canvas 导致上传失败；先用 anon 下载转 data URL（同源、不污染）
+  let drawable=src;
+  if(src.indexOf('blob:')!==0&&src.indexOf('data:')!==0){
+    try{ const d=await downloadToDataUrl(src); if(d)drawable=d; }catch(_){}
+  }
+  try{
+    const im=await loadImgEl(drawable);
+    const maxW=1000;const scale=Math.min(1,maxW/im.naturalWidth);
+    const w=Math.max(1,Math.round(im.naturalWidth*scale)),h=Math.max(1,Math.round(im.naturalHeight*scale));
+    const cv=document.createElement('canvas');cv.width=w;cv.height=h;const ctx=cv.getContext('2d');
+    ctx.drawImage(im,0,0,w,h);
+    (hwState.drawStrokes).forEach(s=>drawStroke(ctx,w,h,s));
+    const url=await uploadCanvas(cv,'hw/'+uid()+'.jpg');
+    if(url)hwState.savedUrl=url;
+  }catch(e){ /* 保留无笔迹图 */ }
+}
 function renderAnno(a){
   const layer=$('#hwLayer');
   if(a.type==='text'){
@@ -637,11 +725,18 @@ function paintAnnos(imgEl,layerEl,annos){
     }
   });
 }
-function miniAnno(image,annos,scanMode){
+function miniAnno(image,annos,scanMode,drawStrokes){
   const wrap=el('div','annot-mini');const im=el('img');const ly=el('div','annot-layer ro');
   wrap.appendChild(im);wrap.appendChild(ly);paintAnnos(im,ly,annos);
   if(scanMode==='bw')im.classList.add('scan-bw'); else if(scanMode==='color')im.classList.add('scan-color');
-  loadImageRobust(im,image,wrap);return wrap;
+  loadImageRobust(im,image,wrap);
+  if(drawStrokes&&drawStrokes.length){
+    const ov=document.createElement('canvas');ov.className='annot-mini-draw';ov.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none';
+    wrap.appendChild(ov);
+    const drawMini=()=>{requestAnimationFrame(()=>{const iw=im.clientWidth,ih=im.clientHeight;if(!iw||!ih)return;ov.width=iw;ov.height=ih;drawStrokes.forEach(s=>drawStroke(ov.getContext('2d'),iw,ih,s));});};
+    im.addEventListener('load',drawMini);
+  }
+  return wrap;
 }
 function makeDraggable(handle,a,node){
   let dragging=false,startX,startY,startPctX,startPctY;
@@ -678,9 +773,11 @@ async function saveHw(){
   const note=$('#hwNote').value.trim();const status=$('#hwStatus').value.trim();const task=$('#hwTask').value.trim();const notified=!!$('#hwNotified').checked;
   if(!note&&!status&&!task){toast('请填写图片备注 / 补充任务 / 当晚学习情况');return;}
   const st=students.find(s=>s.id===sid);
+  await composeHwDraw(); // 把圈画笔迹合成进云端图片，三端可见
   const rec={id:hwEditingId||uid(),studentId:sid,studentName:st.name,className:st.className,
     date,image:hwState.savedUrl||hwState.uploadedUrl||hwState.localUrl,scanMode:hwState.scanMode||'none',
     annotations:JSON.parse(JSON.stringify(hwState.annos)),
+    drawStrokes:JSON.parse(JSON.stringify(hwState.drawStrokes||[])),
     note,status,task,notified,createdAt:hwEditingId?(homework.find(x=>x.id===hwEditingId)||{}).createdAt||Date.now():Date.now()};
   const isEdit=!!hwEditingId;
   await putRec('homework',rec);
@@ -688,7 +785,8 @@ async function saveHw(){
   // 重置
   hwEditingId=null;
   if(hwState.localUrl&&hwState.localUrl.indexOf('blob:')===0)URL.revokeObjectURL(hwState.localUrl);
-  hwState={img:null,annos:[],imgW:0,imgH:0,localUrl:null,uploadedUrl:null,savedUrl:null,scanMode:'none'};
+  hwState={img:null,annos:[],imgW:0,imgH:0,localUrl:null,uploadedUrl:null,savedUrl:null,scanMode:'none',drawStrokes:[]};
+  hwDrawMode=false;const _dc=$('#hwDraw');if(_dc)_dc.classList.remove('active');const _bb=$('#hwBrushBtn');if(_bb)_bb.classList.remove('brush-on');
   $('#hwFile').value='';$('#hwImg').src='';$('#hwWrap').style.display='none';$('#hwTb').style.display='none';
   $('#hwDropText').textContent='📷 点击上传作业登记本照片';$('#hwNote').value='';$('#hwTask').value='';$('#hwStatus').value='';$('#hwNotified').checked=false;
   const sb=$('#hwSaveBtn');if(sb)sb.textContent='💾 保存作业记录';
@@ -708,7 +806,7 @@ function renderHwList(list){
     if(h.task)b.appendChild(el('div','kv',{html:`<b>补充任务</b>${escapeHtml(h.task)}`}));
     if(h.notified!==undefined&&h.notified!==null)b.appendChild(el('div','kv',{html:`<b>已通知接送</b>${h.notified?'是':'否'}`}));
     if(h.status)b.appendChild(el('div','kv',{html:`<b>当晚学情</b>${escapeHtml(h.status)}`}));
-    if(h.image)b.appendChild(miniAnno(h.image,h.annotations,h.scanMode));
+    if(h.image)b.appendChild(miniAnno(h.image,h.annotations,h.scanMode,h.drawStrokes));
     const del=el('button','del-x',{onclick:async()=>{if(confirm('删除这条作业记录？')){await delRec('homework',h.id);await loadAll();render('hw');}}},'删除');
     const edt=el('button','del-x',{onclick:()=>editHw(h.id),style:'background:var(--brand-soft);color:var(--brand);margin-right:6px'},'修改');
     r.appendChild(edt);r.appendChild(del);r.appendChild(b);list.appendChild(r);
@@ -718,9 +816,10 @@ function editHw(id){
   const h=homework.find(x=>x.id===id);if(!h)return;
   render('hw');
   $('#hwStudent').value=h.studentId;$('#hwDate').value=h.date;
-  hwState={img:h.image,annos:JSON.parse(JSON.stringify(h.annotations||[])),imgW:0,imgH:0,localUrl:h.image,uploadedUrl:h.image,savedUrl:h.image,scanMode:h.scanMode||'none'};
+  hwState={img:h.image,annos:JSON.parse(JSON.stringify(h.annotations||[])),imgW:0,imgH:0,localUrl:h.image,uploadedUrl:h.image,savedUrl:h.image,scanMode:h.scanMode||'none',drawStrokes:JSON.parse(JSON.stringify(h.drawStrokes||[]))};
   $('#hwImg').classList.remove('scan-bw','scan-color');
   if(h.scanMode==='bw')$('#hwImg').classList.add('scan-bw'); else if(h.scanMode==='color')$('#hwImg').classList.add('scan-color');
+  $('#hwImg').onload=()=>{sizeHwDraw();redrawHwDraw();};
   loadImageRobust($('#hwImg'),h.image,$('#hwWrap'));$('#hwWrap').style.display='block';$('#hwTb').style.display='flex';
   $('#hwImg').onclick=(ev)=>{
     if(ev.target!==$('#hwImg'))return;
@@ -880,10 +979,10 @@ function examView(){
       const {error}=await sb.storage.from('site').upload(path,body,{contentType:btype,upsert:false,cacheControl:'31536000'});
       if(error)throw error;
       const url=sb.storage.from('site').getPublicUrl(path).data.publicUrl;
-      exUploadedUrl=url;exSavedUrl=url;upText.textContent='📄 已扫描为文档，可补充错题要点';
+      exUploadedUrl=url;exSavedUrl=url;upText.textContent='🌈 已扫描为彩色增强版，可补充错题要点';
     }catch(err){upText.textContent='⚠️ 上传失败（本机预览正常，联网后重传可多设备查看）';toast('上传失败：'+(err&&err.message?err.message:err));}
     finally{up.style.pointerEvents='';}
-    try{ await scanEx('bw'); }catch(_){ upText.textContent='📷 已选试卷照片，可重新点击更换'; }
+    try{ await scanEx('color'); }catch(_){ upText.textContent='📷 已选试卷照片，可重新点击更换'; }
   });
 }
 async function scanEx(mode){
@@ -996,7 +1095,7 @@ async function arcChange(){
     if(h.task)b.appendChild(el('div','kv',{html:`<b>补充任务</b>${escapeHtml(h.task)}`}));
     if(h.notified!==undefined&&h.notified!==null)b.appendChild(el('div','kv',{html:`<b>已通知接送</b>${h.notified?'是':'否'}`}));
     if(h.status)b.appendChild(el('div','kv',{html:`<b>当晚学情</b>${escapeHtml(h.status)}`}));
-    if(h.image)b.appendChild(miniAnno(h.image,h.annotations,h.scanMode));
+    if(h.image)b.appendChild(miniAnno(h.image,h.annotations,h.scanMode,h.drawStrokes));
     const edt=el('button','del-x',{onclick:()=>editHw(h.id),style:'background:var(--brand-soft);color:var(--brand);margin-right:6px'},'修改');
     const del=el('button','del-x',{onclick:async()=>{if(confirm('删除这条作业记录？')){await delRec('homework',h.id);await loadAll();render('archive');}}},'删除');
     r.appendChild(edt);r.appendChild(del);r.appendChild(b);box.appendChild(r);});
